@@ -44,6 +44,23 @@ synthetic-data diagnostics, **not official Open-Jev or JevBench scores** or
 evidence of real customer accuracy. See [BENCHMARKS.md](BENCHMARKS.md) for
 source rights, selection rules, split counts and limitations.
 
+The separate **JevBench public-task scorecard** accepts typed-model predictions
+as JSONL. Each row needs `task_id` and either `probabilities` keyed by the
+task's exact option labels or a `label` for a label-only system. It also accepts
+the official runner's `probs_as_returned` field. Download the pinned public
+tasks from JevBench, run a compatible typed model, and upload its predictions
+to the scorecard. The app rechecks validity and scores all 231 public tasks,
+counting missing or malformed answers as wrong. Example input row:
+
+```json
+{"task_id":"original-policy-01-0","probabilities":{"no":0.9,"yes":0.1},"latency_ms":12.3}
+```
+
+The scorecard has per-tier and per-type accuracy, strict vector validity,
+calibration diagnostics and optional self-reported latency. It cannot run the
+fixed-label candidate above on JevBench, access sealed tasks, or issue the
+official JevBench composite score. See [BENCHMARKS.md](BENCHMARKS.md).
+
 The **Device timing** section measures cold model load, 200 sequential CPU
 predictions after 20 warmups, p50/p95 latency, throughput and peak process RSS.
 For another machine, copy the *same* bundle and the run's

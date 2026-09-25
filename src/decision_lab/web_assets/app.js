@@ -289,3 +289,35 @@ $('reports-file').addEventListener('change', async () => {
     target.append(table);
   } catch (error) { target.textContent = error.message; }
 });
+
+$('jevbench-file').addEventListener('change', () => {
+  $('jevbench-name').textContent = $('jevbench-file').files[0]?.name || 'No file selected';
+});
+$('jevbench-score').addEventListener('click', async () => {
+  const file = $('jevbench-file').files[0];
+  if (!file) { setStatus('jevbench-status', 'Choose a predictions JSONL file.', true); return; }
+  $('jevbench-score').disabled = true;
+  try {
+    if (file.size > 8 * 1024 * 1024) throw new Error('Prediction file exceeds 8 MiB.');
+    setStatus('jevbench-status', 'Checking typed predictions against pinned public tasks…');
+    const started = await api('/api/jevbench/public/score', {content: await readUtf8(file)});
+    const report = await poll(started.job_id, job => setStatus('jevbench-status', job.message));
+    $('jevbench-metrics').replaceChildren(
+      metric('Public accuracy', `${report.overall.correct}/${report.overall.planned} · ${fmt(report.overall.accuracy_full_denominator, true)}`),
+      metric('Submitted', `${report.overall.submitted}/${report.overall.planned}`),
+      metric('Valid vectors / labels', fmt(report.overall.valid)),
+      metric('Calibration error', fmt(report.ece_10_bins, true))
+    );
+    detail($('jevbench-detail'), [
+      ['Original / easy / hard', Object.entries(report.by_tier).map(([tier, value]) => `${tier}: ${value.correct}/${value.planned}`).join(' · ')],
+      ['Noul / Choice / Score', Object.entries(report.by_type).map(([type, value]) => `${type}: ${value.correct}/${value.planned}`).join(' · ')],
+      ['Strict-valid vectors / labels', fmt(report.overall.strict_valid)],
+      ['Brier mean sum', report.brier_mean_sum?.toFixed(3) ?? '—'],
+      ['Reported p50 / p95', report.reported_p50_ms === null ? '—' : `${report.reported_p50_ms.toFixed(1)} / ${report.reported_p95_ms.toFixed(1)} ms`]
+    ]);
+    $('jevbench-report').textContent = JSON.stringify(report, null, 2);
+    $('jevbench-full').classList.remove('hidden');
+    setStatus('jevbench-status', 'Public-subset diagnostic complete. No official JevBench score is issued.');
+  } catch (error) { setStatus('jevbench-status', error.message, true); }
+  finally { $('jevbench-score').disabled = false; }
+});

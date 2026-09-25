@@ -50,3 +50,31 @@ score is not evidence that a model works on company email or tickets. For a
 customer pilot, use authorized real examples, frozen requirements, a current
 routing baseline and an untouched confirmation set. Device timing measures
 only the exported bundle on the machine running the app.
+
+## JevBench public-task scorecard
+
+The web app can also score outputs from a **separate typed-decision model** on
+the 231 public JevBench tasks. It downloads and hash-checks the original 72,
+easy 48 and hard 111 files from JevBench commit
+`1bcc55eb6c8cffde2306b3db03ede39b61c6152a`. The
+[JevBench repository](https://github.com/fstandhartinger/jevbench) and its
+[hard-tier method](https://github.com/fstandhartinger/jevbench/blob/main/datasets/HARD-TIER.md)
+mark these public tasks MIT; no task content is bundled here.
+
+Upload JSONL with one row per task and exact option probabilities. The scorer
+follows JevBench's public per-item rules: exact label keys, finite values in
+`[0,1]`, strict sum tolerance `0.001`, normalization only for rounding within
+`0.02`, and lexicographic tie breaking. Invalid vectors and missing tasks
+count as incorrect over the full public denominator. Label-only answers can
+receive accuracy but never invented calibration. The app recomputes scores
+from predictions and ignores submitted `correct` fields. It reports public
+tier/type accuracy, validity, Brier score and 10-bin ECE; any uploaded timing
+is explicitly self-reported. Predictions and reports stay in the local ignored
+work directory.
+
+The current official JevBench ranking uses sealed tasks, calibration, speed
+and cost. A public-subset scorecard cannot reproduce that ranking, establish
+model generalization or measure cost without provider billing. The local
+fixed-label model does not accept per-item rubrics, so it cannot use this
+typed scorecard directly. Use a typed-model adapter and the upstream harness
+for an official JevBench submission.

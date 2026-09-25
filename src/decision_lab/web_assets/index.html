@@ -94,6 +94,18 @@
         <div id="device-comparison" class="detail"></div>
       </details>
     </section>
+
+    <section class="card" aria-labelledby="jevbench-title">
+      <div class="section-head"><span class="step">06</span><div><h2 id="jevbench-title">JevBench public-task scorecard</h2><p>Score predictions from a typed-decision model against JevBench's pinned original, easy and hard public tasks.</p></div></div>
+      <p class="hint">This is a separate evaluation for models that can answer per-item Noul, Choice and Score rubrics. The fixed-label model above cannot produce these answers. The app checks 231 public tasks, keeps missing or malformed answers in the denominator, and never calls a provider. It cannot calculate JevBench's current official score, which also uses sealed tasks, speed and cost.</p>
+      <p class="hint">Run your typed model on the <a href="https://github.com/fstandhartinger/jevbench/tree/1bcc55eb6c8cffde2306b3db03ede39b61c6152a/datasets/public" target="_blank" rel="noopener noreferrer">pinned public task files</a>, then upload one JSONL object per task with <code>task_id</code> and <code>probabilities</code> (a map from exact label IDs to probabilities). Official JevBench runner results JSONL with <code>probs_as_returned</code> is also accepted. Optional <code>latency_ms</code> is self-reported.</p>
+      <label class="filebox" for="jevbench-file"><strong>Choose typed predictions JSONL</strong><span id="jevbench-name">No file selected</span><input id="jevbench-file" type="file" accept=".jsonl"></label>
+      <button id="jevbench-score" class="secondary" type="button">Score public tasks</button>
+      <p id="jevbench-status" class="status" role="status" aria-live="polite"></p>
+      <div id="jevbench-metrics" class="metrics"></div>
+      <div id="jevbench-detail" class="detail"></div>
+      <details id="jevbench-full" class="hidden"><summary>Full public-subset scorecard</summary><pre id="jevbench-report"></pre></details>
+    </section>
   </main>
 </body>
 </html>

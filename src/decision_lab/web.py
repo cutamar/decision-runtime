@@ -20,6 +20,7 @@ from decision_runtime.evaluate import evaluate
 from decision_runtime.model import canonical_json, sha256
 from .adapt_encoder import adapt_encoder
 from .importer import MAX_UPLOAD_BYTES, ImportErrorDetail, _validate_labels, validate_file
+from .jevbench_public import MAX_SUBMISSION_BYTES, load_public_tasks, parse_submission, score_public_submission
 from .model_source import download_source
 from .open_jev import DATASET_REVISION, PRESETS, prepare_preset
 from .splits import load_records, make_split, validate_split
@@ -301,6 +302,27 @@ class LocalApp:
             return result
         return self._start("benchmark", measure, run_id=run_id)
 
+    def start_jevbench_scoring(self, payload: dict) -> str:
+        content = payload.get("content")
+        if not isinstance(content, str):
+            raise ValueError("choose a JevBench public prediction JSONL file")
+        raw = content.encode("utf-8")
+        if len(raw) > MAX_SUBMISSION_BYTES:
+            raise ValueError("JevBench prediction file exceeds 8 MiB")
+        predictions = parse_submission(raw)
+
+        def assess(job_id: str) -> dict:
+            root = self.workdir / job_id
+            root.mkdir(mode=0o700)
+            (root / "predictions.jsonl").write_bytes(raw)
+            self._update(job_id, message="Verifying pinned JevBench public tasks")
+            tasks = load_public_tasks(self.workdir / "sources" / "jevbench")
+            report = score_public_submission(tasks, predictions)
+            report["prediction_file_sha256"] = sha256(raw)
+            (root / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+            return report
+        return self._start("jevbench_public", assess)
+
 
 def make_handler(app: LocalApp):
     class Handler(BaseHTTPRequestHandler):
@@ -386,6 +408,8 @@ def make_handler(app: LocalApp):
                     self._json(HTTPStatus.ACCEPTED, {"job_id": app.start_benchmark(payload, run_id=run_id)})
                 elif path == "/api/benchmark":
                     self._json(HTTPStatus.ACCEPTED, {"job_id": app.start_benchmark(payload)})
+                elif path == "/api/jevbench/public/score":
+                    self._json(HTTPStatus.ACCEPTED, {"job_id": app.start_jevbench_scoring(payload)})
                 else:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
             except (ValueError, UnicodeError, json.JSONDecodeError, csv.Error, ImportErrorDetail) as exc:
