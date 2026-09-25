@@ -1,23 +1,24 @@
 const token = document.querySelector('meta[name="decision-token"]').content;
 const $ = id => document.getElementById(id);
+const modelNames = {frozen: 'MiniLM encoder', adapted: 'Adapted MiniLM', sparse: 'TF-IDF baseline'};
+const phaseNames = {preparing: 'Prepare data', source: 'Get MiniLM', adapting: 'Adapt encoder', fitting: 'Fit and calibrate', evaluating: 'Check holdout'};
 let activeRun = null;
 let latestTiming = null;
 let presetCatalog = {};
+let labels = [];
+let clockTimer = null;
+
 async function readUtf8(file) {
   if (file.size > 100 * 1024 * 1024) throw new Error('File exceeds 100 MiB');
   return new TextDecoder('utf-8', {fatal: true}).decode(await file.arrayBuffer());
 }
-
 function setStatus(id, message, error = false) {
   const node = $(id);
   node.textContent = message;
   node.classList.toggle('error', error);
 }
 async function api(path, payload) {
-  const response = await fetch(path, {
-    method: 'POST', headers: {'Content-Type': 'application/json', 'X-Decision-Web': token},
-    body: JSON.stringify(payload)
-  });
+  const response = await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Decision-Web': token}, body: JSON.stringify(payload)});
   const body = await response.json();
   if (!response.ok) throw new Error(body.error || `Request failed (${response.status})`);
   return body;
@@ -34,290 +35,240 @@ async function poll(jobId, onUpdate) {
   }
 }
 function fmt(value, percent = false) {
-  if (value === null || value === undefined) return '—';
-  return percent ? `${(value * 100).toFixed(1)}%` : String(value);
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  return percent ? `${(Number(value) * 100).toFixed(1)}%` : String(value);
 }
-function metric(label, value) {
+function metric(label, value, help) {
   const box = document.createElement('div');
   box.className = 'metric';
-  const strong = document.createElement('strong');
-  strong.textContent = value;
-  const name = document.createElement('span');
-  name.textContent = label;
-  box.append(strong, name);
+  const number = document.createElement('strong'); number.textContent = value;
+  const name = document.createElement('span'); name.textContent = label;
+  box.append(number, name);
+  if (help) { const description = document.createElement('small'); description.textContent = help; box.append(description); }
   return box;
-}
-function renderMetrics(target, report) {
-  const items = [
-    metric('Supported accuracy', fmt(report.classification?.accuracy ?? report.supported_accuracy, true)),
-    metric('Macro F1', fmt(report.classification?.per_label?.['macro avg']?.['f1-score'] ?? report.macro_f1, true)),
-    metric('Would accept / coverage', `${fmt(report.accepted)} / ${fmt(report.end_to_end_coverage ?? report.coverage, true)}`),
-    metric('Accepted error', fmt(report.accepted_error_rate, true))
-  ];
-  if (report.ece_10_bins !== undefined) items.push(
-    metric('Calibration error (10 bins)', fmt(report.ece_10_bins, true)),
-    metric('Log loss', report.negative_log_likelihood?.toFixed(3) ?? '—'),
-    metric('Brier score', report.multiclass_brier_mean_sum?.toFixed(3) ?? '—')
-  );
-  target.replaceChildren(...items);
 }
 function detail(target, pairs) {
   target.replaceChildren();
   for (const [key, value] of pairs) {
     const line = document.createElement('div');
-    const name = document.createElement('strong');
-    name.textContent = `${key}: `;
-    line.append(name, document.createTextNode(value));
+    const name = document.createElement('strong'); name.textContent = `${key}: `;
+    const content = document.createElement('span'); content.textContent = String(value); line.append(name, content);
     target.append(line);
   }
 }
-
-fetch('/api/presets', {cache: 'no-store'}).then(response => response.json()).then(data => {
-  presetCatalog = data.presets;
-  if ($('data-source').value !== 'upload') selectSource();
-}).catch(() => setStatus('status', 'Could not load public preset metadata.', true));
+function renderLabels(items) {
+  labels = items;
+  const chips = items.map(label => { const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = label; return chip; });
+  $('label-list').replaceChildren(...chips);
+  if (!chips.length) { const empty = document.createElement('span'); empty.className = 'empty-chip'; empty.textContent = 'Choose a labeled file to discover labels'; $('label-list').append(empty); }
+}
 function selectSource() {
   const source = $('data-source').value;
-  const preset = presetCatalog[source];
-  $('upload-fields').classList.toggle('hidden', source !== 'upload');
-  $('preset-note').classList.toggle('hidden', source === 'upload');
-  $('labels').readOnly = source !== 'upload';
-  if (preset) {
-    $('labels').value = preset.labels.join(', ');
-    $('provenance').value = `${preset.name}; pinned public synthetic dataset`;
-    $('license-notice').value = preset.license;
-    setStatus('status', `Ready to prepare ${preset.name}.`);
-  } else if (source === 'upload') {
-    $('labels').value = '';
-    $('provenance').value = 'Operator-supplied exploratory routing examples';
-    $('license-notice').value = 'Operator-supplied data; permission must be verified before customer use';
-    setStatus('status', 'Choose a labeled file to begin.');
+  const custom = source === 'upload';
+  $('upload-fields').classList.toggle('hidden', !custom);
+  $('data-notes').classList.toggle('hidden', !custom);
+  $('preset-note').classList.toggle('hidden', custom);
+  if (custom) {
+    renderLabels([]);
+    setStatus('setup-status', 'Choose a CSV or JSONL file to begin.');
+  } else {
+    const preset = presetCatalog[source];
+    renderLabels(preset?.labels || []);
+    $('preset-note').textContent = preset ? `${preset.name} uses pinned public synthetic data. Scores here describe a fixed-label projection; they are separate from Open-Jev and JevBench results.` : 'Loading public dataset details…';
+    setStatus('setup-status', preset ? `Ready to prepare ${preset.name}.` : 'Loading public dataset details…');
   }
 }
-$('data-source').addEventListener('change', selectSource);
+function showProgress(model) {
+  const phases = model === 'sparse' ? ['preparing', 'fitting', 'evaluating'] : model === 'adapted' ? ['preparing', 'source', 'adapting', 'fitting', 'evaluating'] : ['preparing', 'source', 'fitting', 'evaluating'];
+  $('progress-steps').replaceChildren(...phases.map(phase => { const item = document.createElement('li'); item.dataset.phase = phase; item.textContent = phaseNames[phase]; return item; }));
+  $('training-progress').classList.remove('hidden');
+  const started = Date.now();
+  const updateClock = () => { const seconds = Math.floor((Date.now() - started) / 1000); $('progress-clock').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; };
+  updateClock(); clockTimer = setInterval(updateClock, 1000);
+}
+function updateProgress(job) {
+  $('progress-message').textContent = job.message;
+  const steps = [...$('progress-steps').children];
+  const index = steps.findIndex(item => item.dataset.phase === job.phase);
+  steps.forEach((item, position) => { item.classList.toggle('done', index > position || job.status === 'complete'); item.classList.toggle('active', index === position && job.status !== 'complete'); });
+  if (job.status === 'failed') $('training-progress').classList.add('failed');
+}
+function stopProgress() { clearInterval(clockTimer); clockTimer = null; $('training-progress').classList.add('hidden'); $('training-progress').classList.remove('failed'); }
+function renderEvaluation(target, report) {
+  target.replaceChildren(
+    metric('Accuracy', fmt(report.supported_accuracy, true), 'Share of labeled rows given the correct top label.'),
+    metric('Macro F1', fmt(report.macro_f1, true), 'Average F1 across labels; each label gets equal weight.'),
+    metric('Coverage', fmt(report.coverage, true), `${fmt(report.accepted)} of ${fmt(report.rows)} rows would receive a suggestion; the rest defer for review.`),
+    metric('Error after acceptance', fmt(report.accepted_error_rate, true), 'Wrong suggestions divided by all accepted suggestions. A dash means the model deferred every row.')
+  );
+}
+function renderRun(result) {
+  activeRun = result.run_id;
+  const report = result.holdout;
+  if (!report) throw new Error('This saved run predates the current app. Fit a new model to see its holdout results.');
+  $('model-name').textContent = modelNames[result.model] || result.model;
+  $('model-source').textContent = result.benchmark?.name || 'Your labeled data';
+  $('result-caveat').textContent = result.preset ? 'These synthetic, publicly labeled examples are useful for checking the workflow; they do not predict performance on your company’s messages.' : 'These numbers describe one split of your labeled file. Check label quality, representative sampling and group overlap before relying on them.';
+  $('row-count').textContent = `${fmt(report.rows)} holdout rows`;
+  $('results-context').textContent = `This exact model was checked on ${fmt(report.rows)} labeled rows kept apart from fitting and threshold selection.`;
+  renderEvaluation($('holdout-metrics'), report);
+  $('secondary-metrics').replaceChildren(
+    metric('Calibration error', fmt(report.ece_10_bins, true), 'Mean gap between predicted confidence and observed accuracy across 10 confidence bins; lower is better.'),
+    metric('Log loss', report.negative_log_likelihood?.toFixed(3) ?? '—', 'Penalizes confident wrong predictions; lower is better.'),
+    metric('Brier score', report.multiclass_brier_mean_sum?.toFixed(3) ?? '—', 'Mean squared probability error across labels; lower is better.')
+  );
+  const split = result.partition_rows || {};
+  const details = [
+    ['Accepted source rows', fmt(result.import?.accepted_rows)],
+    ['Rejected source rows', fmt(result.import?.rejected_rows)],
+    ['Training / development / calibration / policy / holdout', ['train', 'development', 'calibration', 'policy', 'test'].map(key => fmt(split[key])).join(' / ')],
+    ['Labels', (report.labels || []).join(', ')],
+    ['Accepted / deferred on holdout', `${fmt(report.accepted)} / ${fmt(report.rows - report.accepted)}`],
+    ['Model bundle', result.bundle],
+    ['Timing workload', result.benchmark_texts]
+  ];
+  if (result.benchmark) details.push(['Public source revision', result.benchmark.source_revision]);
+  detail($('run-details'), details);
+  $('holdout-report').textContent = JSON.stringify(report, null, 2);
+  $('development-report').textContent = JSON.stringify({development: result.development, policy_selection: result.policy_selection, qualification_status: result.qualification_status}, null, 2);
+  $('shift-panel').classList.toggle('hidden', !result.preset);
+  $('shift-metrics').replaceChildren(); $('shift-report-wrap').classList.add('hidden'); setStatus('shift-status', '');
+  $('prediction').classList.add('hidden'); setStatus('try-status', '');
+  $('results').classList.remove('hidden'); $('try').classList.remove('hidden'); $('benchmark-current').disabled = false;
+}
 
+$('data-source').addEventListener('change', selectSource);
 $('dataset-file').addEventListener('change', async () => {
   const file = $('dataset-file').files[0];
-  $('file-name').textContent = file?.name || 'No file selected';
+  $('file-name').textContent = file?.name || 'CSV or JSONL · up to 100 MiB';
+  renderLabels([]);
   if (!file) return;
   try {
-    setStatus('status', 'Reading labels…');
+    setStatus('setup-status', 'Reading labels from your file…');
     const result = await api('/api/preview', {filename: file.name, content: await readUtf8(file)});
-    $('labels').value = result.labels.join(', ');
-    setStatus('status', `Found ${result.labels.length} labels. Ready to fit.`);
-  } catch (error) { setStatus('status', error.message, true); }
+    renderLabels(result.labels);
+    setStatus('setup-status', `Found ${result.labels.length} labels. Ready to fit.`);
+  } catch (error) { setStatus('setup-status', error.message, true); }
 });
-
 $('start').addEventListener('click', async () => {
   const source = $('data-source').value;
   const file = $('dataset-file').files[0];
-  if (source === 'upload' && !file) { setStatus('status', 'Choose a dataset first.', true); return; }
-  $('start').disabled = true;
-  $('results').classList.add('hidden');
-  $('external').classList.add('hidden');
-  $('published-evaluation').classList.add('hidden');
-  $('benchmark-current').disabled = true;
-  activeRun = null;
+  if (source === 'upload' && (!file || !labels.length)) { setStatus('setup-status', 'Choose a labeled file and wait for its labels to appear.', true); return; }
+  const model = document.querySelector('input[name="model"]:checked').value;
+  $('start').disabled = true; $('results').classList.add('hidden'); $('try').classList.add('hidden'); $('benchmark-current').disabled = true; activeRun = null;
+  showProgress(model);
   try {
-    setStatus('status', source === 'upload' ? 'Uploading and validating data…' : 'Preparing pinned public data…');
-    const request = {
-      model: $('model').value,
-      min_coverage: $('coverage').value,
-      max_accepted_error: $('error').value,
-      confidence: $('confidence').value,
-      provenance: $('provenance').value,
-      license_notice: $('license-notice').value
-    };
-    if (source === 'upload') {
-      request.filename = file.name;
-      request.content = await readUtf8(file);
-      request.labels = $('labels').value.split(',').map(item => item.trim()).filter(Boolean);
-    } else {
-      request.preset = source;
-    }
+    const request = {model, min_coverage: $('coverage').value, max_accepted_error: $('error').value, confidence: $('confidence').value};
+    if (source === 'upload') Object.assign(request, {filename: file.name, content: await readUtf8(file), labels, provenance: $('provenance').value, license_notice: $('license-notice').value});
+    else request.preset = source;
+    setStatus('setup-status', 'Starting your run…');
     const started = await api('/api/runs', request);
-    const result = await poll(started.job_id, job => setStatus('status', job.message));
-    activeRun = result.run_id;
-    const report = result.development;
-    renderMetrics($('metrics'), report);
-    const datasetDetails = [
-      ['Accepted rows', fmt(result.import.accepted_rows)],
-      ['Rejected rows', fmt(result.import.rejected_rows)],
-      ['Split', Object.entries(result.partition_rows).map(([name, count]) => `${name}: ${count}`).join(' · ')],
-      ['Model', result.model],
-      ['Bundle', result.bundle],
-      ['Timing workload', result.benchmark_texts]
-    ];
-    if (result.benchmark) datasetDetails.push(
-      ['Source revision', result.benchmark.source_revision],
-      ['Excluded non-hard targets', fmt(Object.values(result.benchmark.excluded_soft_or_unlabeled).reduce((sum, count) => sum + count, 0))]
-    );
-    detail($('dataset-summary'), datasetDetails);
-    detail($('decision-summary'), [
-      ['Would accept', fmt(report.accepted)],
-      ['Would defer', fmt(report.deferred)],
-      ['Accepted errors', fmt(report.accepted_errors)],
-      ['Qualification', result.qualification_status]
-    ]);
-    $('report').textContent = JSON.stringify(report, null, 2);
-    $('results').classList.remove('hidden');
-    $('external').classList.remove('hidden');
-    $('benchmark-current').disabled = false;
-    if (result.preset) $('published-evaluation').classList.remove('hidden');
-    setStatus('status', 'Candidate ready. The final test remains untouched.');
-  } catch (error) { setStatus('status', error.message, true); }
-  finally { $('start').disabled = false; }
+    const result = await poll(started.job_id, job => { updateProgress(job); setStatus('setup-status', job.message, job.status === 'failed'); });
+    renderRun(result);
+    setStatus('setup-status', 'Model ready. Holdout results are below.');
+    $('results').scrollIntoView({behavior: 'smooth', block: 'start'});
+  } catch (error) { setStatus('setup-status', error.message, true); }
+  finally { stopProgress(); $('start').disabled = false; }
 });
-
-async function evaluatePublished(split) {
+$('evaluate-ood').addEventListener('click', async () => {
   if (!activeRun) return;
-  $('evaluate-test').disabled = true;
-  $('evaluate-ood').disabled = true;
+  $('evaluate-ood').disabled = true; $('evaluate-ood').classList.add('busy');
   try {
-    setStatus('published-status', `Evaluating published ${split.toUpperCase()} subset…`);
-    const started = await api(`/api/runs/${activeRun}/evaluate`, {published_split: split});
-    const report = await poll(started.job_id, job => setStatus('published-status', job.message));
-    renderMetrics($('published-metrics'), report);
-    $('published-report').textContent = JSON.stringify(report, null, 2);
-    $('published-detail').classList.remove('hidden');
-    setStatus('published-status', `${split.toUpperCase()}: ${report.rows} rows. Derived-task diagnostic only.`);
-  } catch (error) { setStatus('published-status', error.message, true); }
-  finally { $('evaluate-test').disabled = false; $('evaluate-ood').disabled = false; }
-}
-$('evaluate-test').addEventListener('click', () => evaluatePublished('test'));
-$('evaluate-ood').addEventListener('click', () => evaluatePublished('ood'));
-
-$('evaluation-file').addEventListener('change', () => {
-  $('evaluation-name').textContent = $('evaluation-file').files[0]?.name || 'No file selected';
+    setStatus('shift-status', 'Checking the current model on shifted examples…');
+    const started = await api(`/api/runs/${activeRun}/evaluate`, {split: 'ood'});
+    const report = await poll(started.job_id, job => setStatus('shift-status', job.message));
+    renderEvaluation($('shift-metrics'), report);
+    $('shift-report').textContent = JSON.stringify(report, null, 2);
+    $('shift-report-wrap').classList.remove('hidden');
+    setStatus('shift-status', `Checked ${fmt(report.rows)} shifted rows with this model.`);
+  } catch (error) { setStatus('shift-status', error.message, true); }
+  finally { $('evaluate-ood').disabled = false; $('evaluate-ood').classList.remove('busy'); }
 });
-$('evaluate').addEventListener('click', async () => {
-  const file = $('evaluation-file').files[0];
-  if (!activeRun || !file) { setStatus('evaluation-status', 'Choose a separate labeled file.', true); return; }
-  $('evaluate').disabled = true;
+const abstentionReasons = {below_threshold: 'Its confidence did not meet the chosen threshold.', ambiguous_top_choice: 'The top choices were too close to call.', label_review_only: 'This label is configured for review.', unsupported_input: 'The input could not be scored reliably.', input_too_long: 'The message is longer than this model supports.'};
+$('try-button').addEventListener('click', async () => {
+  const text = $('trial-text').value.trim();
+  if (!activeRun) { setStatus('try-status', 'Fit a model first.', true); return; }
+  if (!text) { setStatus('try-status', 'Write or paste a message first.', true); return; }
+  $('try-button').disabled = true; $('try-button').classList.add('busy'); $('prediction').classList.add('hidden');
   try {
-    setStatus('evaluation-status', 'Evaluating labeled data…');
-    const started = await api(`/api/runs/${activeRun}/evaluate`, {filename: file.name, content: await readUtf8(file)});
-    const report = await poll(started.job_id, job => setStatus('evaluation-status', job.message));
-    renderMetrics($('external-metrics'), report);
-    $('external-report').textContent = JSON.stringify(report, null, 2);
-    $('external-detail').classList.remove('hidden');
-    setStatus('evaluation-status', `Evaluated ${report.rows} rows. Descriptive results only.`);
-  } catch (error) { setStatus('evaluation-status', error.message, true); }
-  finally { $('evaluate').disabled = false; }
+    setStatus('try-status', 'Scoring this message locally…');
+    const result = await api(`/api/runs/${activeRun}/predict`, {text});
+    $('prediction-label').textContent = result.suggested_choice || result.choice || 'No label';
+    const accepted = result.status === 'would_accept';
+    $('prediction-policy').textContent = accepted ? 'Would suggest' : 'Needs review';
+    $('prediction-policy').classList.toggle('defer', !accepted);
+    $('prediction-explanation').textContent = accepted ? 'The top label passes this model’s review threshold.' : (abstentionReasons[result.abstention_reason] || 'The model would defer this message for review. The top label is shown for inspection.');
+    const rows = Object.entries(result.probabilities || {}).sort((a, b) => b[1] - a[1]).map(([label, probability]) => {
+      const row = document.createElement('div'); row.className = 'prob-row';
+      const name = document.createElement('span'); name.className = 'prob-label'; name.textContent = label; const value = document.createElement('strong'); value.className = 'prob-value'; value.textContent = fmt(probability, true);
+      const track = document.createElement('div'); track.className = 'prob-track'; const bar = document.createElement('span'); bar.style.width = `${Math.max(0, Math.min(100, probability * 100))}%`; track.append(bar); row.append(name, track, value); return row;
+    });
+    $('probability-list').replaceChildren(...rows);
+    $('prediction').classList.remove('hidden'); setStatus('try-status', 'Prediction ready.');
+  } catch (error) { setStatus('try-status', error.message, true); }
+  finally { $('try-button').disabled = false; $('try-button').classList.remove('busy'); }
 });
 
 function renderTiming(report) {
   latestTiming = report;
   $('timing-metrics').replaceChildren(
-    metric('Cold load', `${report.cold_load_ms.toFixed(1)} ms`),
-    metric('Warm p50', `${report.warm_p50_ms.toFixed(1)} ms`),
-    metric('Warm p95', `${report.warm_p95_ms.toFixed(1)} ms`),
-    metric('Sequential calls / s', report.sequential_calls_per_second.toFixed(1))
+    metric('Cold load', `${report.cold_load_ms.toFixed(1)} ms`, 'Time to load the bundle before the first call.'),
+    metric('Warm p50', `${report.warm_p50_ms.toFixed(1)} ms`, 'Half of timed calls were this fast or faster.'),
+    metric('Warm p95', `${report.warm_p95_ms.toFixed(1)} ms`, '95% of timed calls were this fast or faster.'),
+    metric('Sequential calls / s', report.sequential_calls_per_second.toFixed(1), 'Average calls per second, one at a time.')
   );
   detail($('timing-device'), [
     ['CPU', report.cpu_model || report.processor || 'Unknown'],
     ['OS / architecture', `${report.machine} / ${report.architecture}`],
     ['Peak RSS', `${report.peak_rss_mib.toFixed(1)} MiB`],
-    ['Bundle and workload', `${report.manifest_sha256.slice(0, 12)} / ${report.workload_sha256.slice(0, 12)}`],
+    ['Bundle / workload ID', `${report.manifest_sha256.slice(0, 12)} / ${report.workload_sha256.slice(0, 12)}`],
     ['Method', `${report.warmup_calls} warmups, ${report.timed_calls} timed calls, concurrency ${report.concurrency}`]
   ]);
   $('download-timing').classList.remove('hidden');
 }
 async function timeBundle(path, payload) {
-  $('benchmark-current').disabled = true;
-  $('benchmark-copied').disabled = true;
+  $('benchmark-current').disabled = true; $('benchmark-copied').disabled = true; $('benchmark-current').classList.add('busy');
   try {
-    setStatus('timing-status', 'Loading bundle and running repeated CPU calls…');
+    setStatus('timing-status', 'Loading bundle and measuring CPU calls…');
     const started = await api(path, payload);
     const report = await poll(started.job_id, job => setStatus('timing-status', job.message));
     renderTiming(report);
-    setStatus('timing-status', 'Timing complete on this device. Download the report to compare with another device.');
+    setStatus('timing-status', 'Timing complete. Download the report to compare this device with another.');
   } catch (error) { setStatus('timing-status', error.message, true); }
-  finally { $('benchmark-current').disabled = !activeRun; $('benchmark-copied').disabled = false; }
+  finally { $('benchmark-current').disabled = !activeRun; $('benchmark-copied').disabled = false; $('benchmark-current').classList.remove('busy'); }
 }
-$('benchmark-current').addEventListener('click', () => {
-  if (activeRun) timeBundle(`/api/runs/${activeRun}/benchmark`, {});
-});
-$('workload-file').addEventListener('change', () => {
-  $('workload-name').textContent = $('workload-file').files[0]?.name || 'No file selected';
-});
+$('benchmark-current').addEventListener('click', () => { if (activeRun) timeBundle(`/api/runs/${activeRun}/benchmark`, {}); });
+$('workload-file').addEventListener('change', () => { $('workload-name').textContent = $('workload-file').files[0]?.name || 'Choose file'; });
 $('benchmark-copied').addEventListener('click', async () => {
   const file = $('workload-file').files[0];
   if (!file) { setStatus('timing-status', 'Choose a representative texts JSON file.', true); return; }
-  try {
-    const texts = JSON.parse(await readUtf8(file));
-    await timeBundle('/api/benchmark', {bundle_path: $('bundle-path').value,
-      trusted_public_key_path: $('public-key-path').value, texts});
-  } catch (error) { setStatus('timing-status', error.message, true); }
+  try { await timeBundle('/api/benchmark', {bundle_path: $('bundle-path').value, trusted_public_key_path: $('public-key-path').value, texts: JSON.parse(await readUtf8(file))}); }
+  catch (error) { setStatus('timing-status', error.message, true); }
 });
 $('download-timing').addEventListener('click', () => {
   if (!latestTiming) return;
   const blob = new Blob([JSON.stringify(latestTiming, null, 2) + '\n'], {type: 'application/json'});
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `decision-timing-${latestTiming.manifest_sha256.slice(0, 12)}.json`;
-  link.click();
+  const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `decision-timing-${latestTiming.manifest_sha256.slice(0, 12)}.json`; link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 });
 $('reports-file').addEventListener('change', async () => {
-  const files = [...$('reports-file').files];
-  $('reports-name').textContent = `${files.length} file(s) selected`;
-  const target = $('device-comparison');
-  target.replaceChildren();
+  const files = [...$('reports-file').files]; $('reports-name').textContent = `${files.length} file(s) selected`;
+  const target = $('device-comparison'); target.replaceChildren();
   try {
     if (files.length < 2) throw new Error('Choose at least two timing reports.');
     const reports = await Promise.all(files.map(async file => JSON.parse(await readUtf8(file))));
-    if (reports.some(report => report.manifest_sha256 !== reports[0].manifest_sha256 ||
-        report.workload_sha256 !== reports[0].workload_sha256 || report.timed_calls !== reports[0].timed_calls)) {
-      throw new Error('Reports must use the same bundle, text workload and timed-call count.');
-    }
-    const table = document.createElement('table');
-    const head = document.createElement('tr');
-    for (const name of ['Device', 'Cold load', 'P50', 'P95', 'Calls/s', 'Peak MiB']) {
-      const cell = document.createElement('th'); cell.textContent = name; head.append(cell);
-    }
-    table.append(head);
+    if (reports.some(report => report.manifest_sha256 !== reports[0].manifest_sha256 || report.workload_sha256 !== reports[0].workload_sha256 || report.timed_calls !== reports[0].timed_calls)) throw new Error('Reports must use the same bundle, text workload and timed-call count.');
+    const table = document.createElement('table'); const head = document.createElement('tr');
+    for (const name of ['Device', 'Cold load', 'P50', 'P95', 'Calls/s', 'Peak MiB']) { const cell = document.createElement('th'); cell.textContent = name; head.append(cell); } table.append(head);
     for (const report of reports) {
       const row = document.createElement('tr');
-      for (const value of [report.cpu_model || report.machine, `${report.cold_load_ms.toFixed(1)} ms`,
-          `${report.warm_p50_ms.toFixed(1)} ms`, `${report.warm_p95_ms.toFixed(1)} ms`,
-          report.sequential_calls_per_second.toFixed(1), report.peak_rss_mib.toFixed(1)]) {
-        const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
-      }
+      for (const value of [report.cpu_model || report.machine, `${report.cold_load_ms.toFixed(1)} ms`, `${report.warm_p50_ms.toFixed(1)} ms`, `${report.warm_p95_ms.toFixed(1)} ms`, report.sequential_calls_per_second.toFixed(1), report.peak_rss_mib.toFixed(1)]) { const cell = document.createElement('td'); cell.textContent = value; row.append(cell); }
       table.append(row);
     }
     target.append(table);
   } catch (error) { target.textContent = error.message; }
 });
 
-$('jevbench-file').addEventListener('change', () => {
-  $('jevbench-name').textContent = $('jevbench-file').files[0]?.name || 'No file selected';
-});
-$('jevbench-score').addEventListener('click', async () => {
-  const file = $('jevbench-file').files[0];
-  if (!file) { setStatus('jevbench-status', 'Choose a predictions JSONL file.', true); return; }
-  $('jevbench-score').disabled = true;
-  try {
-    if (file.size > 8 * 1024 * 1024) throw new Error('Prediction file exceeds 8 MiB.');
-    setStatus('jevbench-status', 'Checking typed predictions against pinned public tasks…');
-    const started = await api('/api/jevbench/public/score', {content: await readUtf8(file)});
-    const report = await poll(started.job_id, job => setStatus('jevbench-status', job.message));
-    $('jevbench-metrics').replaceChildren(
-      metric('Public accuracy', `${report.overall.correct}/${report.overall.planned} · ${fmt(report.overall.accuracy_full_denominator, true)}`),
-      metric('Submitted', `${report.overall.submitted}/${report.overall.planned}`),
-      metric('Valid vectors / labels', fmt(report.overall.valid)),
-      metric('Calibration error', fmt(report.ece_10_bins, true))
-    );
-    detail($('jevbench-detail'), [
-      ['Original / easy / hard', Object.entries(report.by_tier).map(([tier, value]) => `${tier}: ${value.correct}/${value.planned}`).join(' · ')],
-      ['Noul / Choice / Score', Object.entries(report.by_type).map(([type, value]) => `${type}: ${value.correct}/${value.planned}`).join(' · ')],
-      ['Strict-valid vectors / labels', fmt(report.overall.strict_valid)],
-      ['Brier mean sum', report.brier_mean_sum?.toFixed(3) ?? '—'],
-      ['Reported p50 / p95', report.reported_p50_ms === null ? '—' : `${report.reported_p50_ms.toFixed(1)} / ${report.reported_p95_ms.toFixed(1)} ms`]
-    ]);
-    $('jevbench-report').textContent = JSON.stringify(report, null, 2);
-    $('jevbench-full').classList.remove('hidden');
-    setStatus('jevbench-status', 'Public-subset diagnostic complete. No official JevBench score is issued.');
-  } catch (error) { setStatus('jevbench-status', error.message, true); }
-  finally { $('jevbench-score').disabled = false; }
-});
+Promise.all([fetch('/api/presets', {cache: 'no-store'}).then(response => response.json()), fetch('/api/runs/current', {cache: 'no-store'}).then(response => response.json())])
+  .then(([catalog, current]) => { presetCatalog = catalog.presets || {}; selectSource(); if (current.run) { renderRun(current.run); setStatus('setup-status', 'Your latest model is ready below. Fit again to replace it.'); } })
+  .catch(error => setStatus('setup-status', `Could not load app state: ${error.message}`, true));

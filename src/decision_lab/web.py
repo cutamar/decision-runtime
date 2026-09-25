@@ -6,6 +6,7 @@ import argparse
 import csv
 import io
 import json
+import re
 import secrets
 import statistics
 import threading
@@ -17,13 +18,12 @@ from urllib.parse import urlsplit
 
 from decision_runtime.benchmark import benchmark
 from decision_runtime.evaluate import evaluate
-from decision_runtime.model import canonical_json, sha256
+from decision_runtime.model import DecisionModel, InvalidInputError, canonical_json, sha256
 from .adapt_encoder import adapt_encoder
 from .importer import MAX_UPLOAD_BYTES, ImportErrorDetail, _validate_labels, validate_file
-from .jevbench_public import MAX_SUBMISSION_BYTES, load_public_tasks, parse_submission, score_public_submission
 from .model_source import download_source
 from .open_jev import DATASET_REVISION, PRESETS, prepare_preset
-from .splits import load_records, make_split, validate_split
+from .splits import make_split, validate_split
 from .train import train_bundle
 
 FRACTIONS = {"train": 0.4, "development": 0.15, "calibration": 0.15, "policy": 0.15, "test": 0.15}
@@ -60,6 +60,8 @@ class LocalApp:
         self.source = source
         self.jobs: dict[str, dict] = {}
         self.lock = threading.Lock()
+        self.current_model_id: str | None = None
+        self.current_model: DecisionModel | None = None
         self.token = secrets.token_hex(24)
         workdir.mkdir(mode=0o700, parents=True, exist_ok=True)
         workdir.chmod(0o700)
@@ -86,15 +88,18 @@ class LocalApp:
                 raise ValueError("another local job is running; wait for it to finish")
             job_id = secrets.token_hex(8)
             self.jobs[job_id] = {"id": job_id, "kind": kind, "run_id": run_id,
-                                 "status": "queued", "message": "Queued"}
+                                 "status": "queued", "phase": "queued", "message": "Queued"}
 
         def run():
-            self._update(job_id, status="running", message="Working")
+            self._update(job_id, status="running", phase="preparing", message="Starting")
             try:
                 result = task(job_id)
-                self._update(job_id, status="complete", message="Complete", result=result)
+                if kind == "train":
+                    (self.workdir / job_id / "web-result.json").write_text(
+                        json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                self._update(job_id, status="complete", phase="complete", message="Complete", result=result)
             except Exception as exc:
-                self._update(job_id, status="failed", message=str(exc)[:400])
+                self._update(job_id, status="failed", phase="failed", message=str(exc)[:400])
 
         threading.Thread(target=run, name=f"decision-{kind}-{job_id}", daemon=True).start()
         return job_id
@@ -109,8 +114,31 @@ class LocalApp:
                 raise KeyError("unknown job")
             return dict(self.jobs[job_id])
 
+    def run_result(self, run_id: str) -> dict:
+        if not re.fullmatch(r"[0-9a-f]{16}", run_id):
+            raise KeyError("unknown run")
+        with self.lock:
+            job = self.jobs.get(run_id)
+            if job is not None and job["status"] != "complete":
+                raise ValueError("model preparation is still running")
+        path = self.workdir / run_id / "web-result.json"
+        if path.is_symlink() or not path.is_file():
+            raise KeyError("unknown run")
+        result = json.loads(path.read_text(encoding="utf-8"))
+        result["bundle"] = str(self.workdir / run_id / "bundle")
+        result["benchmark_texts"] = str(self.workdir / run_id / "benchmark-texts.json")
+        return result
+
+    def current_run(self) -> dict | None:
+        candidates = [path for path in self.workdir.glob("*/web-result.json")
+                      if re.fullmatch(r"[0-9a-f]{16}", path.parent.name) and path.is_file() and not path.is_symlink()]
+        if not candidates:
+            return None
+        latest = max(candidates, key=lambda path: path.stat().st_mtime_ns)
+        return self.run_result(latest.parent.name)
+
     def _settings(self, payload: dict) -> tuple[str, dict]:
-        model_kind = payload.get("model")
+        model_kind = payload.get("model", "frozen")
         if not isinstance(model_kind, str) or model_kind not in {"sparse", "frozen", "adapted"}:
             raise ValueError("choose sparse, frozen or adapted")
         try:
@@ -129,6 +157,7 @@ class LocalApp:
              labels: list[str], model_kind: str, quality: dict,
              provenance: str, license_notice: str, import_summary: dict,
              *, preset: str | None = None, ood: list[dict] | None = None) -> dict:
+        self._update(job_id, phase="preparing", message="Preparing records and checking the split")
         dataset = root / "clean.jsonl"
         with dataset.open("x", encoding="utf-8") as output:
             for record in records:
@@ -136,11 +165,11 @@ class LocalApp:
         validate_split(records, split)
         split_path = root / "split.json"
         split_path.write_text(json.dumps(split, indent=2) + "\n", encoding="utf-8")
+        selected = {row["id"]: row for row in records}
+        with (root / "test.jsonl").open("x", encoding="utf-8") as output:
+            for row_id in split["memberships"]["test"]:
+                output.write(json.dumps(selected[row_id], ensure_ascii=False) + "\n")
         if preset:
-            selected = {row["id"]: row for row in records}
-            with (root / "test.jsonl").open("x", encoding="utf-8") as output:
-                for row_id in split["memberships"]["test"]:
-                    output.write(json.dumps(selected[row_id], ensure_ascii=False) + "\n")
             with (root / "ood.jsonl").open("x", encoding="utf-8") as output:
                 for row in ood or []:
                     output.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -158,32 +187,38 @@ class LocalApp:
         plan_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
         bundle = root / "bundle"
         if model_kind == "sparse":
+            self._update(job_id, phase="fitting", message="Fitting the sparse classifier and selecting a review threshold")
             report = train_bundle(dataset, split_path, plan_path, bundle, candidate_only=True)
         else:
-            self._update(job_id, message="Verifying pinned MiniLM source")
+            self._update(job_id, phase="source", message="Downloading and verifying MiniLM files")
             download_source(self.source, include_weights=model_kind == "adapted")
             if model_kind == "adapted":
-                self._update(job_id, message="Adapting the last MiniLM layer")
+                self._update(job_id, phase="adapting", message="Adapting MiniLM's last layer")
                 adapted = root / "adapted-source"
                 adapt_encoder(dataset, split_path, self.source, adapted)
                 source = adapted
             else:
                 source = self.source
-            self._update(job_id, message="Fitting classifier and evaluating development data")
+            self._update(job_id, phase="fitting", message="Fitting the classifier and checking development data")
             from .train_encoder import train_encoder_bundle
             report = train_encoder_bundle(dataset, split_path, plan_path, source, bundle, candidate_only=True)
         development_ids = set(split["memberships"]["development"])
         texts = [row["text"] for row in records if row["id"] in development_ids]
         (root / "benchmark-texts.json").write_text(json.dumps(texts, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self._update(job_id, phase="evaluating", message="Evaluating the current model on the holdout")
+        holdout = evaluate(bundle, root / "test.jsonl")
+        holdout["source_split"] = "test"
+        if preset:
+            holdout["benchmark_note"] = "Derived fixed-label subset of public synthetic data; not an Open-Jev or JevBench score."
+        (root / "holdout-report.json").write_text(json.dumps(holdout, indent=2) + "\n", encoding="utf-8")
         return {"run_id": job_id, "model": model_kind, "bundle": str(bundle),
                 "benchmark_texts": str(root / "benchmark-texts.json"),
                 "preset": preset, "import": import_summary,
                 "partition_rows": report["partition_rows"],
-                "development": report["development"],
+                "development": report["development"], "holdout": holdout,
                 "policy_selection": report["policy_selection"],
                 "qualification_status": report["status"],
-                "final_test": report["final_test"],
-                "note": "Exploratory candidate only. The reserved final test was not evaluated."}
+                "note": "Local diagnostic run; metrics do not establish production performance."}
 
     def start_training(self, payload: dict) -> str:
         if payload.get("preset"):
@@ -202,12 +237,14 @@ class LocalApp:
         def train(job_id: str) -> dict:
             root = self.workdir / job_id
             root.mkdir(mode=0o700)
+            self._update(job_id, phase="preparing", message="Validating your labeled file")
             uploaded = root / filename
             uploaded.write_bytes(raw)
             imported = validate_file(uploaded, labels)
             if imported.report["accepted_rows"] < 30:
                 raise ValueError("at least 30 valid rows are needed for this exploratory split")
             (root / "import-report.json").write_text(json.dumps(imported.report, indent=2) + "\n", encoding="utf-8")
+            self._update(job_id, phase="preparing", message="Making a grouped train and holdout split")
             split = make_split(imported.records, FRACTIONS, seed=42)
             summary = {key: imported.report[key] for key in ("accepted_rows", "rejected_rows", "class_counts", "missing_metadata_counts")}
             return self._fit(job_id, root, imported.records, split, labels, model_kind, quality,
@@ -224,7 +261,7 @@ class LocalApp:
         def train(job_id: str) -> dict:
             root = self.workdir / job_id
             root.mkdir(mode=0o700)
-            self._update(job_id, message="Downloading and verifying pinned public data")
+            self._update(job_id, phase="preparing", message="Downloading and verifying pinned public data")
             prepared = prepare_preset(name, self.workdir / "sources")
             summary = {"accepted_rows": len(prepared["records"]), "rejected_rows": 0,
                        "excluded_non_hard_targets": sum(prepared["excluded"].values()),
@@ -242,36 +279,40 @@ class LocalApp:
         return self._start("train", train)
 
     def start_evaluation(self, run_id: str, payload: dict) -> str:
-        training = self.job(run_id)
-        if training["kind"] != "train" or training["status"] != "complete":
-            raise ValueError("training must finish before external evaluation")
-        published_split = payload.get("published_split")
-        if published_split is not None:
-            if training["result"].get("preset") is None or published_split not in {"test", "ood"}:
-                raise ValueError("published split is unavailable for this run")
-            filename, raw = None, None
-        else:
-            filename, raw = self._upload(payload)
+        training = self.run_result(run_id)
+        split = payload.get("split")
+        if split != "ood" or training.get("preset") is None or set(payload) != {"split"}:
+            raise ValueError("this run has no optional shift set")
         def assess(job_id: str) -> dict:
             root = self.workdir / run_id
-            if published_split:
-                labeled = root / f"{published_split}.jsonl"
-            else:
-                labeled = root / f"external-{job_id}{Path(filename).suffix.lower()}"
-                labeled.write_bytes(raw)
-            report = evaluate(root / "bundle", labeled)
-            report["source_split"] = published_split or "operator_supplied"
-            if published_split:
-                report["benchmark_note"] = "Derived fixed-label subset; not an official Open-Jev or JevBench result. Public labels may have been used during development."
-            (root / f"external-{job_id}.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+            self._update(job_id, phase="evaluating", message="Evaluating the current model on the shift set")
+            report = evaluate(root / "bundle", root / "ood.jsonl")
+            report["source_split"] = "ood"
+            report["benchmark_note"] = "Derived fixed-label subset of public synthetic data; not an Open-Jev or JevBench score."
+            (root / f"ood-report-{job_id}.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
             return report
         return self._start("evaluate", assess, run_id=run_id)
 
+    def predict(self, run_id: str, payload: dict) -> dict:
+        self.run_result(run_id)
+        if set(payload) != {"text"} or not isinstance(payload["text"], str) or not payload["text"].strip():
+            raise ValueError("enter a nonempty text input")
+        text = payload["text"]
+        if len(text.encode("utf-8")) > 128 * 1024:
+            raise ValueError("input text exceeds 128 KiB")
+        with self.lock:
+            if self.current_model_id != run_id:
+                self.current_model = DecisionModel.load(self.workdir / run_id / "bundle", allow_unsigned=True)
+                self.current_model_id = run_id
+            model = self.current_model
+        try:
+            return model.predict(text, evaluation=True).to_dict()
+        except InvalidInputError as exc:
+            raise ValueError(str(exc)) from exc
+
     def start_benchmark(self, payload: dict, *, run_id: str | None = None) -> str:
         if run_id:
-            training = self.job(run_id)
-            if training["kind"] != "train" or training["status"] != "complete":
-                raise ValueError("training must finish before timing")
+            self.run_result(run_id)
             bundle = self.workdir / run_id / "bundle"
             texts = json.loads((self.workdir / run_id / "benchmark-texts.json").read_text(encoding="utf-8"))
             key = None
@@ -290,6 +331,7 @@ class LocalApp:
             raise ValueError("representative texts must be 1–1000 nonempty strings")
 
         def measure(job_id: str) -> dict:
+            self._update(job_id, phase="evaluating", message="Loading the bundle and measuring CPU calls")
             result = benchmark(bundle, texts, warmup=20, samples=200, trusted_public_key=key)
             result["workload_sha256"] = sha256(canonical_json(texts))
             result["workload_count"] = len(texts)
@@ -301,28 +343,6 @@ class LocalApp:
             (destination / f"timing-{job_id}.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
             return result
         return self._start("benchmark", measure, run_id=run_id)
-
-    def start_jevbench_scoring(self, payload: dict) -> str:
-        content = payload.get("content")
-        if not isinstance(content, str):
-            raise ValueError("choose a JevBench public prediction JSONL file")
-        raw = content.encode("utf-8")
-        if len(raw) > MAX_SUBMISSION_BYTES:
-            raise ValueError("JevBench prediction file exceeds 8 MiB")
-        predictions = parse_submission(raw)
-
-        def assess(job_id: str) -> dict:
-            root = self.workdir / job_id
-            root.mkdir(mode=0o700)
-            (root / "predictions.jsonl").write_bytes(raw)
-            self._update(job_id, message="Verifying pinned JevBench public tasks")
-            tasks = load_public_tasks(self.workdir / "sources" / "jevbench")
-            report = score_public_submission(tasks, predictions)
-            report["prediction_file_sha256"] = sha256(raw)
-            (root / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-            return report
-        return self._start("jevbench_public", assess)
-
 
 def make_handler(app: LocalApp):
     class Handler(BaseHTTPRequestHandler):
@@ -354,6 +374,9 @@ def make_handler(app: LocalApp):
                 self._json(HTTPStatus.OK, {"revision": DATASET_REVISION,
                                            "presets": {key: {"name": value["name"], "labels": value["labels"],
                                                              "license": value["license"]} for key, value in PRESETS.items()}})
+                return
+            if path == "/api/runs/current":
+                self._json(HTTPStatus.OK, {"run": app.current_run()})
                 return
             if path.startswith("/api/jobs/"):
                 try:
@@ -403,13 +426,14 @@ def make_handler(app: LocalApp):
                 elif path.startswith("/api/runs/") and path.endswith("/evaluate"):
                     run_id = path[len("/api/runs/"):-len("/evaluate")]
                     self._json(HTTPStatus.ACCEPTED, {"job_id": app.start_evaluation(run_id, payload)})
+                elif path.startswith("/api/runs/") and path.endswith("/predict"):
+                    run_id = path[len("/api/runs/"):-len("/predict")]
+                    self._json(HTTPStatus.OK, app.predict(run_id, payload))
                 elif path.startswith("/api/runs/") and path.endswith("/benchmark"):
                     run_id = path[len("/api/runs/"):-len("/benchmark")]
                     self._json(HTTPStatus.ACCEPTED, {"job_id": app.start_benchmark(payload, run_id=run_id)})
                 elif path == "/api/benchmark":
                     self._json(HTTPStatus.ACCEPTED, {"job_id": app.start_benchmark(payload)})
-                elif path == "/api/jevbench/public/score":
-                    self._json(HTTPStatus.ACCEPTED, {"job_id": app.start_jevbench_scoring(payload)})
                 else:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
             except (ValueError, UnicodeError, json.JSONDecodeError, csv.Error, ImportErrorDetail) as exc:

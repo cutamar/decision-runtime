@@ -63,38 +63,37 @@ python3 -m venv .venv
 .venv/bin/decision-web
 ```
 
-Open `http://127.0.0.1:8765`. You can upload a UTF-8 CSV/JSONL file with
-`text,label` fields, choose a sparse or frozen MiniLM candidate, and evaluate
-the exported bundle against a separate labeled file. To tune the last MiniLM
-layer, install `.[lab,adapt]` first and choose **Adapted MiniLM**. On a CPU-only
-machine, install a compatible CPU PyTorch wheel before the `adapt` extra.
-MiniLM source files are downloaded at a pinned revision and verified by hash.
+Open `http://127.0.0.1:8765`. The default dataset is a pinned public
+synthetic email task and the default model is a frozen MiniLM encoder. You can
+switch to support routing or upload your own UTF-8 CSV/JSONL file with `text`
+and `label` fields (30 or more accepted rows, 2–20 labels). `group_id` is
+recommended for related messages. The app discovers labels, validates the
+file, makes a group-aware split, fits the chosen model, and evaluates that
+**same exported model** on its holdout. You can inspect metrics, per-label
+results, calibration, the review policy and raw reports, then write your own
+message to see its predicted label, probabilities and whether the policy would
+suggest it or defer it for review. Your trial text is not saved as training
+material. For last-layer MiniLM adaptation, install `.[lab,adapt]` first.
+On a CPU-only machine, install a compatible CPU PyTorch wheel before the
+`adapt` extra. MiniLM source files are downloaded at a pinned revision and
+verified by hash.
 
-The app also offers two pinned public Open-Jev **derived fixed-label** presets:
-English email kind (six labels) and English support routing (four labels). The
-first use downloads and verifies public synthetic files from Hugging Face; no
-benchmark rows or model weights are included in this repository. You can run
-the publisher's test and OOD subsets after fitting. These are software and
-synthetic-data diagnostics, **not official Open-Jev or JevBench scores** or
-evidence of real customer accuracy. See [BENCHMARKS.md](BENCHMARKS.md) for
-source rights, selection rules, split counts and limitations.
+The public presets are narrow **fixed-label projections** of the
+[Open-Jev dataset](https://huggingface.co/datasets/ZefanCai/Open-Jev): English
+email kind (six labels) and English support routing (four labels). First use
+downloads and verifies synthetic files from Hugging Face. A separate shifted
+set can be checked after fitting each preset. These diagnostics are **not
+Open-Jev or JevBench scores** and do not establish customer accuracy. See
+[BENCHMARKS.md](BENCHMARKS.md) for exact mapping, counts, rights, results and
+comparison limits.
 
-The separate **JevBench public-task scorecard** accepts typed-model predictions
-as JSONL. Each row needs `task_id` and either `probabilities` keyed by the
-task's exact option labels or a `label` for a label-only system. It also accepts
-the official runner's `probs_as_returned` field. Download the pinned public
-tasks from JevBench, run a compatible typed model, and upload its predictions
-to the scorecard. The app rechecks validity and scores all 231 public tasks,
-counting missing or malformed answers as wrong. Example input row:
-
-```json
-{"task_id":"original-policy-01-0","probabilities":{"no":0.9,"yes":0.1},"latency_ms":12.3}
-```
-
-The scorecard has per-tier and per-type accuracy, strict vector validity,
-calibration diagnostics and optional self-reported latency. It cannot run the
-fixed-label candidate above on JevBench, access sealed tasks, or issue the
-official JevBench composite score. See [BENCHMARKS.md](BENCHMARKS.md).
+The evaluation settings control the review policy: **coverage goal** is the
+desired share of messages receiving a label, **maximum error bound** limits
+the upper confidence bound on error among accepted suggestions, and
+**confidence level** controls how conservative that bound is. The app displays
+the observed holdout coverage and accepted error separately from those goals.
+If every row defers, accepted error is shown as unavailable. Results describe
+one split and should be checked on authorized, representative data before use.
 
 The **Device timing** section measures cold model load, 200 sequential CPU
 predictions after 20 warmups, p50/p95 latency, throughput and peak process RSS.
@@ -110,8 +109,7 @@ candidate bundles and reports in `data/web-runs/` under the current directory.
 The Compose setup listens inside its container and publishes only to host
 loopback. Run the app on
 a trusted machine with permitted data; it has one local operator, no account
-isolation and no hosted upload service. Training and evaluation are exploratory.
-They do not issue a qualified production release.
+isolation and no hosted upload service. Training and evaluation are exploratory and do not issue a qualified production release.
 
 For a signed bundle, obtain its trusted public key separately from the bundle:
 

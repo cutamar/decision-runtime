@@ -4,108 +4,96 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="decision-token" content="__CSRF_TOKEN__">
-  <title>Decision Lab</title>
+  <title>Decision Lab — System One</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <main class="shell">
-    <header class="hero">
-      <div class="eyebrow">SYSTEM ONE / LOCAL MVP</div>
-      <h1>Decision Lab</h1>
-      <p>Adapt a fixed-label routing model to your own data and inspect its measured behavior. Files and models stay on this machine.</p>
-      <div class="notice">Exploratory workflow: development and policy partitions are shown. The reserved final test stays untouched, and this app does not qualify a production release.</div>
+  <div class="page-frame">
+    <header class="masthead">
+      <a class="wordmark" href="#top" aria-label="Decision Lab home"><span class="mark">D<span>.</span></span><span>Decision Lab<small>by System One</small></span></a>
+      <nav aria-label="Page sections"><a href="#setup">Set up</a><a href="#results">Results</a><a href="#try">Try a message</a><a href="#timing">Device timing</a></nav>
+      <span class="local-tag"><span class="local-dot"></span> Runs on this machine</span>
     </header>
 
-    <section class="card" aria-labelledby="data-title">
-      <div class="section-head"><span class="step">01</span><div><h2 id="data-title">Choose your data</h2><p>Use your own labeled CSV/JSONL, or a pinned public Open-Jev task projection.</p></div></div>
-      <label>Data source<select id="data-source"><option value="upload">My labeled data</option><option value="mail_kind_en">Open-Jev · English email kind (6 labels)</option><option value="support_routing_en">Open-Jev · English support routing (4 labels)</option></select></label>
-      <p id="preset-note" class="hint hidden">Public synthetic controls. The app preserves the source train, calibration and test splits; it divides validation groups between development and policy. This is a derived fixed-label experiment, not an official Open-Jev or JevBench score.</p>
-      <div id="upload-fields">
-        <label class="filebox" for="dataset-file"><strong>Choose a routing dataset</strong><span id="file-name">No file selected</span><input id="dataset-file" type="file" accept=".csv,.jsonl" required></label>
-        <p class="hint">CSV or JSONL needs <code>text</code> and <code>label</code>. Add <code>group_id</code> and <code>occurred_at</code> when available.</p>
-      </div>
-      <div class="grid two">
-        <label>Label IDs <small>Detected from your file, or fixed by the public preset.</small><input id="labels" type="text" placeholder="account, billing, technical" required></label>
-        <label>Model to fit<select id="model"><option value="sparse">Sparse TF-IDF baseline · fast</option><option value="frozen">Frozen MiniLM + classifier</option><option value="adapted">Adapt MiniLM last layer + classifier</option></select></label>
-      </div>
-      <p class="hint">The MiniLM paths download and verify the pinned source once. Adaptation uses a bounded recipe and may take time on CPU.</p>
-    </section>
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">A practical workbench for text decisions</p>
+          <h1 id="hero-title">Train it. <em>Question it.</em><br>See the numbers.</h1>
+          <p class="lead">Turn labeled messages into a local routing model. Try a public synthetic dataset or bring your own, then inspect how this exact model behaves on unseen rows and on text you write.</p>
+          <a class="text-link" href="#setup">Start with a dataset <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="hero-diagram" aria-hidden="true">
+          <div><span>01</span><strong>Examples</strong><small>what people wrote</small></div>
+          <div><span>02</span><strong>Model</strong><small>what it learned</small></div>
+          <div><span>03</span><strong>Evidence</strong><small>where it is unsure</small></div>
+        </div>
+      </section>
 
-    <section class="card" aria-labelledby="plan-title">
-      <div class="section-head"><span class="step">02</span><div><h2 id="plan-title">Exploratory plan</h2><p>These targets guide policy selection. They are example values until a workflow owner agrees on a real evaluation plan.</p></div></div>
-      <div class="grid three">
-        <label>Minimum coverage<input id="coverage" type="number" min="0.01" max="0.99" step="0.01" value="0.40"></label>
-        <label>Maximum accepted error bound<input id="error" type="number" min="0.01" max="0.99" step="0.01" value="0.10"></label>
-        <label>Confidence level<input id="confidence" type="number" min="0.01" max="0.99" step="0.01" value="0.95"></label>
-      </div>
-      <div class="grid two">
-        <label>Data provenance<input id="provenance" value="Operator-supplied exploratory routing examples" maxlength="4000"></label>
-        <label>Data rights note<input id="license-notice" value="Operator-supplied data; permission must be verified before customer use" maxlength="4000"></label>
-      </div>
-      <button id="start" type="button">Prepare, fit and evaluate <span aria-hidden="true">→</span></button>
-      <p id="status" class="status" role="status" aria-live="polite">Ready when you are.</p>
-    </section>
+      <section class="sheet" id="setup" aria-labelledby="setup-title">
+        <div class="section-heading"><span class="section-number">01 / SET UP</span><div><h2 id="setup-title">Choose the task</h2><p>One model learns one fixed set of labels. Start with a public example or a labeled file of your own.</p></div></div>
+        <div class="setup-grid">
+          <div class="pane">
+            <label class="field-label" for="data-source">Dataset</label>
+            <select id="data-source"><option value="mail_kind_en">Open-Jev synthetic email kind</option><option value="support_routing_en">Open-Jev synthetic support routing</option><option value="upload">My labeled CSV or JSONL</option></select>
+            <p id="preset-note" class="field-help">Pinned public synthetic data. The app downloads and verifies it before fitting. These tasks are fixed-label projections, so their scores are separate from Open-Jev's published tables.</p>
+            <div id="upload-fields" class="hidden">
+              <label class="dropzone" for="dataset-file"><span class="drop-icon" aria-hidden="true">↑</span><strong>Choose a labeled file</strong><span id="file-name">CSV or JSONL · up to 100 MiB</span><input id="dataset-file" type="file" accept=".csv,.jsonl"></label>
+              <p class="field-help">Include <code>text</code> and <code>label</code>. Add <code>group_id</code> when messages from the same conversation belong together.</p>
+            </div>
+            <div class="label-preview"><span class="field-label">Labels the model will use</span><div id="label-list" class="chips"><span class="empty-chip">Loading labels…</span></div></div>
+          </div>
+          <fieldset class="pane model-pane"><legend>Model</legend>
+            <label class="model-option"><input type="radio" name="model" value="frozen" checked><span><strong>MiniLM encoder</strong><small>Use the pretrained encoder and fit a classifier. A good first run.</small></span><b>DEFAULT</b></label>
+            <label class="model-option"><input type="radio" name="model" value="adapted"><span><strong>Adapt MiniLM</strong><small>Also tune its last layer on your labels. Slower, with more compute.</small></span></label>
+            <label class="model-option"><input type="radio" name="model" value="sparse"><span><strong>TF-IDF baseline</strong><small>A fast, lightweight reference that can be surprisingly strong.</small></span></label>
+          </fieldset>
+        </div>
 
-    <section id="results" class="card hidden" aria-labelledby="results-title">
-      <div class="section-head"><span class="step">03</span><div><h2 id="results-title">Development results</h2><p>Metrics come from the exported local bundle. The candidate remains exploratory.</p></div></div>
-      <div id="metrics" class="metrics"></div>
-      <div class="grid two">
-        <div><h3>Dataset and split</h3><div id="dataset-summary" class="detail"></div></div>
-        <div><h3>Decision behavior</h3><div id="decision-summary" class="detail"></div></div>
-      </div>
-      <details><summary>Full development report</summary><pre id="report"></pre></details>
-      <div id="published-evaluation" class="hidden">
-        <h3>Published held-out splits</h3>
-        <p class="hint">Run these after selecting the candidate. Labels are public, so results are exploratory diagnostics and cannot be compared with the published Open-Jev or JevBench tables.</p>
-        <button id="evaluate-test" class="secondary" type="button">Evaluate published test</button>
-        <button id="evaluate-ood" class="secondary" type="button">Evaluate published OOD</button>
-        <p id="published-status" class="status" role="status" aria-live="polite"></p>
-        <div id="published-metrics" class="metrics"></div>
-        <details id="published-detail" class="hidden"><summary>Full published-split report</summary><pre id="published-report"></pre></details>
-      </div>
-      <p class="hint">The test partition was reserved but never read by candidate training. A final release needs a frozen plan, target-machine resource checks and a separate finalization step.</p>
-    </section>
+        <details class="settings" open><summary><span><strong>Evaluation settings</strong><small>Three numbers that guide when the model suggests a label or defers.</small></span><span class="summary-icon" aria-hidden="true">+</span></summary>
+          <div class="settings-grid">
+            <label>Coverage goal <input id="coverage" type="number" min="0.01" max="0.99" step="0.01" value="0.40"><small>The desired share of messages receiving a suggestion. It is a goal to check, not a reason to force an uncertain answer.</small></label>
+            <label>Maximum error bound <input id="error" type="number" min="0.01" max="0.99" step="0.01" value="0.10"><small>Threshold selection aims to keep an upper bound on mistakes among suggested labels below this number. Lower values defer more often.</small></label>
+            <label>Confidence level <input id="confidence" type="number" min="0.01" max="0.99" step="0.01" value="0.95"><small>How cautious the error bound is. Higher values make the threshold harder to satisfy, especially with little data.</small></label>
+          </div>
+          <div id="data-notes" class="settings-grid two hidden">
+            <label>Where these examples came from <input id="provenance" type="text" value="Operator-supplied routing examples" maxlength="4000"><small>Stored with the model bundle so another developer can trace the data source.</small></label>
+            <label>Permission to use the data <input id="license-notice" type="text" value="Operator-supplied data; permission confirmed by operator" maxlength="4000"><small>Record the license or permission under which you can process these examples.</small></label>
+          </div>
+        </details>
+        <div class="run-actions"><button id="start" class="button primary" type="button">Prepare and fit model <span aria-hidden="true">→</span></button><p id="setup-status" class="status" role="status" aria-live="polite">Choose a task to begin.</p></div>
+        <div id="training-progress" class="progress-panel hidden" role="status" aria-live="polite">
+          <div class="progress-top"><div class="loader" aria-hidden="true"><i></i><i></i><i></i></div><div><strong>Building your model</strong><p id="progress-message">Preparing data…</p></div><span id="progress-clock">00:00</span></div>
+          <div class="progress-track"><span></span></div>
+          <ol id="progress-steps" class="progress-steps"></ol>
+        </div>
+      </section>
 
-    <section id="external" class="card hidden" aria-labelledby="external-title">
-      <div class="section-head"><span class="step">04</span><div><h2 id="external-title">Evaluate a separate labeled file</h2><p>Use new records with the same labels. The app reports descriptive metrics; it cannot verify that these examples are independent or untouched.</p></div></div>
-      <label class="filebox" for="evaluation-file"><strong>Choose labeled evaluation data</strong><span id="evaluation-name">No file selected</span><input id="evaluation-file" type="file" accept=".csv,.jsonl"></label>
-      <button id="evaluate" class="secondary" type="button">Evaluate this model <span aria-hidden="true">→</span></button>
-      <p id="evaluation-status" class="status" role="status" aria-live="polite"></p>
-      <div id="external-metrics" class="metrics"></div>
-      <details id="external-detail" class="hidden"><summary>Full external report</summary><pre id="external-report"></pre></details>
-    </section>
+      <section class="sheet hidden" id="results" aria-labelledby="results-title">
+        <div class="section-heading"><span class="section-number">02 / RESULTS</span><div><h2 id="results-title">What did this model learn?</h2><p id="results-context">Measured on rows kept apart from fitting and threshold selection.</p></div></div>
+        <div class="result-banner"><div><span class="overline">CURRENT MODEL</span><strong id="model-name">MiniLM encoder</strong><small id="model-source">Public synthetic email kind</small></div><span id="row-count" class="row-count"></span></div>
+        <div id="holdout-metrics" class="metric-grid"></div>
+        <p id="result-caveat" class="fine-print">These numbers describe this dataset and split. Check representativeness and label quality before relying on them.</p>
+        <details class="report-details"><summary>More metrics and run details <span aria-hidden="true">↗</span></summary><div id="run-details" class="detail-grid"></div><div id="secondary-metrics" class="metric-grid secondary-metrics"></div><details><summary>Raw evaluation report</summary><pre id="holdout-report"></pre></details><details><summary>Development diagnostics</summary><pre id="development-report"></pre></details></details>
+        <div id="shift-panel" class="shift-panel hidden"><div><strong>How does it handle shifted examples?</strong><p>Public presets include a separate out-of-distribution set. Run the current model on it to see how the metrics change.</p></div><button id="evaluate-ood" class="button secondary" type="button">Check shift set <span aria-hidden="true">↗</span></button><p id="shift-status" class="status" role="status" aria-live="polite"></p><div id="shift-metrics" class="metric-grid"></div><details id="shift-report-wrap" class="hidden"><summary>Shift-set report</summary><pre id="shift-report"></pre></details></div>
+      </section>
 
-    <section class="card" aria-labelledby="timing-title">
-      <div class="section-head"><span class="step">05</span><div><h2 id="timing-title">Device timing</h2><p>Measure the exact bundle on this machine: cold load, warm p50/p95 latency, sequential throughput and peak memory.</p></div></div>
-      <button id="benchmark-current" type="button" disabled>Time the current model <span aria-hidden="true">→</span></button>
-      <p class="hint">Uses 20 warmups and 200 timed calls on development texts. The benchmark saves its text workload beside the bundle. Run the same bundle and workload on each device for a fair comparison. CPU inference only.</p>
-      <details><summary>Time a copied bundle on this device</summary>
-        <div class="grid two"><label>Local bundle directory<input id="bundle-path" type="text" placeholder="/path/to/copied/bundle"></label><label>Trusted public key file, if signed<input id="public-key-path" type="text" placeholder="/path/to/key.pem"></label></div>
-        <label class="filebox" for="workload-file"><strong>Representative texts JSON array</strong><span id="workload-name">No file selected</span><input id="workload-file" type="file" accept=".json"></label>
-        <button id="benchmark-copied" class="secondary" type="button">Time copied bundle</button>
-      </details>
-      <p id="timing-status" class="status" role="status" aria-live="polite"></p>
-      <div id="timing-metrics" class="metrics"></div>
-      <div id="timing-device" class="detail"></div>
-      <button id="download-timing" class="secondary hidden" type="button">Download timing JSON</button>
-      <details><summary>Compare saved device reports</summary>
-        <label class="filebox" for="reports-file"><strong>Select two or more timing JSON files</strong><span id="reports-name">No files selected</span><input id="reports-file" type="file" accept=".json" multiple></label>
-        <div id="device-comparison" class="detail"></div>
-      </details>
-    </section>
+      <section class="sheet hidden" id="try" aria-labelledby="try-title">
+        <div class="section-heading"><span class="section-number">03 / TRY IT</span><div><h2 id="try-title">Give it a message</h2><p>Use the model you just fitted. This text is scored locally and is not added to training data.</p></div></div>
+        <label class="field-label" for="trial-text">Message to classify</label><textarea id="trial-text" rows="7" placeholder="Paste a message here…"></textarea><p id="trial-help" class="field-help">Write something similar to the examples in your dataset.</p>
+        <button id="try-button" class="button primary" type="button">See prediction <span aria-hidden="true">→</span></button><p id="try-status" class="status" role="status" aria-live="polite"></p>
+        <div id="prediction" class="prediction hidden"><div class="prediction-heading"><div><span class="overline">TOP LABEL</span><strong id="prediction-label">—</strong></div><span id="prediction-policy" class="policy-pill"></span></div><p id="prediction-explanation"></p><div id="probability-list" class="probability-list"></div></div>
+      </section>
 
-    <section class="card" aria-labelledby="jevbench-title">
-      <div class="section-head"><span class="step">06</span><div><h2 id="jevbench-title">JevBench public-task scorecard</h2><p>Score predictions from a typed-decision model against JevBench's pinned original, easy and hard public tasks.</p></div></div>
-      <p class="hint">This is a separate evaluation for models that can answer per-item Noul, Choice and Score rubrics. The fixed-label model above cannot produce these answers. The app checks 231 public tasks, keeps missing or malformed answers in the denominator, and never calls a provider. It cannot calculate JevBench's current official score, which also uses sealed tasks, speed and cost.</p>
-      <p class="hint">Run your typed model on the <a href="https://github.com/fstandhartinger/jevbench/tree/1bcc55eb6c8cffde2306b3db03ede39b61c6152a/datasets/public" target="_blank" rel="noopener noreferrer">pinned public task files</a>, then upload one JSONL object per task with <code>task_id</code> and <code>probabilities</code> (a map from exact label IDs to probabilities). Official JevBench runner results JSONL with <code>probs_as_returned</code> is also accepted. Optional <code>latency_ms</code> is self-reported.</p>
-      <label class="filebox" for="jevbench-file"><strong>Choose typed predictions JSONL</strong><span id="jevbench-name">No file selected</span><input id="jevbench-file" type="file" accept=".jsonl"></label>
-      <button id="jevbench-score" class="secondary" type="button">Score public tasks</button>
-      <p id="jevbench-status" class="status" role="status" aria-live="polite"></p>
-      <div id="jevbench-metrics" class="metrics"></div>
-      <div id="jevbench-detail" class="detail"></div>
-      <details id="jevbench-full" class="hidden"><summary>Full public-subset scorecard</summary><pre id="jevbench-report"></pre></details>
-    </section>
-  </main>
+      <section class="sheet timing-sheet" id="timing" aria-labelledby="timing-title">
+        <div class="section-heading"><span class="section-number">04 / DEVICES</span><div><h2 id="timing-title">Time the same model on each CPU</h2><p>Measure cold load, warm latency and memory. Save reports to compare machines using the same bundle and text workload.</p></div></div>
+        <button id="benchmark-current" class="button secondary" type="button" disabled>Time current model <span aria-hidden="true">↗</span></button><p class="field-help">20 warmups and 200 sequential calls on development texts. Results reflect this machine and software environment.</p>
+        <p id="timing-status" class="status" role="status" aria-live="polite"></p><div id="timing-metrics" class="metric-grid"></div><div id="timing-device" class="detail-grid"></div><button id="download-timing" class="button quiet hidden" type="button">Download timing JSON ↓</button>
+        <div class="timing-tools"><details><summary>Time a copied bundle on this device</summary><div class="settings-grid two"><label>Bundle directory <input id="bundle-path" type="text" placeholder="/path/to/copied/bundle"></label><label>Trusted key file, if signed <input id="public-key-path" type="text" placeholder="/path/to/key.pem"></label></div><label class="file-inline" for="workload-file">Representative texts JSON <span id="workload-name">Choose file</span><input id="workload-file" type="file" accept=".json"></label><button id="benchmark-copied" class="button secondary" type="button">Time copied bundle</button></details><details><summary>Compare saved timing reports</summary><label class="file-inline" for="reports-file">Two or more timing JSON reports <span id="reports-name">Choose files</span><input id="reports-file" type="file" accept=".json" multiple></label><div id="device-comparison" class="table-wrap"></div></details></div>
+      </section>
+    </main>
+    <footer><span>Decision Lab / System One</span><span>Local models. Inspectable evidence. <a href="https://github.com/cutamar/decision-runtime" target="_blank" rel="noopener noreferrer">Source on GitHub ↗</a></span></footer>
+  </div>
 </body>
 </html>

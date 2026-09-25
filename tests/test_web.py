@@ -37,7 +37,7 @@ class LocalWebTests(unittest.TestCase):
                 server.server_close()
                 worker.join(timeout=2)
 
-    def test_sparse_web_run_preserves_test_and_evaluates_separate_file(self):
+    def test_sparse_web_run_evaluates_holdout_and_predicts_current_model(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             app = LocalApp(root / "runs", root / "unused-model")
@@ -58,10 +58,18 @@ class LocalWebTests(unittest.TestCase):
             finished = app.job(job_id)
             self.assertEqual(finished["status"], "complete", finished.get("message"))
             result = finished["result"]
-            self.assertIsNone(result["final_test"])
+            self.assertEqual(result["holdout"]["rows"], result["partition_rows"]["test"])
+            self.assertTrue(0 <= result["holdout"]["supported_accuracy"] <= 1)
             self.assertEqual(result["qualification_status"], "exploratory")
             bundle = Path(result["bundle"])
             self.assertEqual(inspect_bundle(bundle)["qualification_status"], "exploratory")
+            restored = LocalApp(root / "runs", root / "unused-model")
+            self.assertEqual(restored.current_run()["run_id"], job_id)
+            prediction = restored.predict(job_id, {"text": "invoice payment issue"})
+            self.assertEqual(prediction["suggested_choice"], "billing")
+            self.assertIn(prediction["status"], {"would_accept", "would_defer"})
+            with self.assertRaises(ValueError):
+                restored.start_evaluation(job_id, {"filename": "new.csv", "content": "text,label\nx,y"})
             external = root / "new.csv"
             external.write_text("text,label\ninvoice payment issue,billing\npassword account issue,account\n", encoding="utf-8")
             report = evaluate(bundle, external)
