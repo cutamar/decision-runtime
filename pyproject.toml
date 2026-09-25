@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decision-runtime"
+version = "0.1.0"
+description = "Offline fixed-label decision runtime and evaluation tools"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["cryptography>=40"]
+
+[project.optional-dependencies]
+neural = ["numpy>=2,<3", "onnx>=1.23,<2", "onnxruntime>=1.30,<2", "tokenizers>=0.23,<1"]
+
+[project.scripts]
+decision-inspect = "decision_runtime.inspect:main"
+decision-evaluate = "decision_runtime.evaluate:main"
+decision-benchmark = "decision_runtime.benchmark:main"
+decision-shadow = "decision_runtime.shadow:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["decision_runtime*"]
+
+[tool.setuptools.package-data]
+decision_runtime = ["schemas/*.json"]

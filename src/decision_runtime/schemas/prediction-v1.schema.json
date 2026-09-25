@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:decision-runtime:schema:prediction-v1",
+  "title": "Decision prediction 1.0",
+  "type": "object",
+  "required": ["schema_version", "status", "choice", "suggested_choice", "top_probability", "probabilities", "abstention_reason", "model_version", "policy_version", "calibration_status"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "status": {"enum": ["accepted", "abstain", "would_accept", "would_defer"]},
+    "choice": {"type": ["string", "null"]},
+    "suggested_choice": {"type": ["string", "null"]},
+    "top_probability": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "probabilities": {"type": ["object", "null"], "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}},
+    "abstention_reason": {"type": ["string", "null"]},
+    "model_version": {"type": "string", "minLength": 1},
+    "policy_version": {"type": "string", "minLength": 1},
+    "calibration_status": {"enum": ["fitted", "unfitted"]}
+  },
+  "additionalProperties": false
+}
