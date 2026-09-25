@@ -422,6 +422,8 @@ def make_handler(app: LocalApp):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Start the local exploratory decision web app")
+    parser.add_argument("--host", choices=("127.0.0.1", "0.0.0.0"), default="127.0.0.1",
+                        help="listen address; use 0.0.0.0 only behind a loopback-published container port")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--workdir", type=Path, default=Path("data/web-runs"))
     parser.add_argument("--source", type=Path, default=Path("data/models/all-MiniLM-L6-v2-bc57282"))
@@ -429,7 +431,7 @@ def main() -> None:
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
     app = LocalApp(args.workdir, args.source)
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(app))
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(app))
     print(f"Decision web app: http://127.0.0.1:{server.server_port}", flush=True)
     try:
         server.serve_forever()

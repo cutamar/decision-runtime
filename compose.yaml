@@ -1,0 +1,26 @@
+services:
+  lab:
+    build:
+      context: .
+      args:
+        ENABLE_ADAPT: ${ENABLE_ADAPT:-1}
+    image: decision-lab:local
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - lab_data:/data
+    init: true
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/presets', timeout=5).read()"
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  lab_data:

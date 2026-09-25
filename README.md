@@ -7,6 +7,41 @@ without a platform connection. It also includes local evaluation, inspection,
 benchmark and shadow-mode tools. The optional local lab offers dataset import,
 sparse or MiniLM candidate fitting, evaluation and device timing in a browser.
 
+## Run with Docker Compose
+
+From the [public repository](https://github.com/cutamar/decision-runtime):
+
+```bash
+git clone https://github.com/cutamar/decision-runtime.git
+cd decision-runtime
+docker compose up --build -d
+```
+
+Open **http://127.0.0.1:8765**. The default image includes sparse, frozen
+MiniLM and adapted MiniLM choices. Its first build installs the CPU training
+dependencies; the pinned MiniLM files and public benchmark data download on
+first use. The app and model execution stay local. Compose publishes the port
+only on the host's loopback address and stores uploads, cached data and model
+bundles in the persistent `lab_data` volume. `docker compose down` stops the
+app and keeps that volume. To inspect run files, use
+`docker compose exec lab ls /data/web-runs`; to copy a bundle to the host, use
+`docker compose cp lab:/data/web-runs/RUN_ID/bundle ./bundle` with the run ID
+shown in the app.
+
+Use `docker compose logs -f lab` to inspect startup or job errors, and
+`docker compose down` to stop the service. The default image is large because
+it includes CPU PyTorch for adaptation. For a smaller sparse/frozen-only image,
+build with `ENABLE_ADAPT=0 docker compose up --build -d`; the adapted model
+choice then requires rebuilding with `ENABLE_ADAPT=1`.
+
+If you are in the platform repository, run
+`docker compose -f runtime/compose.yaml up --build -d` instead. The Docker Compose
+plugin is required (`docker compose version`). On Linux with Docker Engine but no
+Compose command, install the Compose plugin using
+[Docker's instructions](https://docs.docker.com/compose/install/linux/).
+
+## Run directly with Python
+
 This directory is an independently buildable package. From this runtime directory
 (or its separate Git repository):
 
@@ -70,8 +105,10 @@ app compares reports only when bundle manifest hash, workload hash and sample
 count match. Measurements depend on the machine, software environment and
 workload. They do not claim phone, GPU or hosted-device performance.
 
-The server binds only to `127.0.0.1` and saves uploads, candidate bundles and
-reports in `data/web-runs/` under the current directory by default. Run it on
+Direct Python runs bind only to `127.0.0.1` by default and save uploads,
+candidate bundles and reports in `data/web-runs/` under the current directory.
+The Compose setup listens inside its container and publishes only to host
+loopback. Run the app on
 a trusted machine with permitted data; it has one local operator, no account
 isolation and no hosted upload service. Training and evaluation are exploratory.
 They do not issue a qualified production release.

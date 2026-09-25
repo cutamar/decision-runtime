@@ -1,0 +1,11 @@
+.git
+.venv
+build
+dist
+data
+artifacts
+tests
+examples
+__pycache__
+*.egg-info
+*.pyc
