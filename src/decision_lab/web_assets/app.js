@@ -1,6 +1,6 @@
 const token = document.querySelector('meta[name="decision-token"]').content;
 const $ = id => document.getElementById(id);
-const modelNames = {frozen: 'MiniLM encoder', adapted: 'Adapted MiniLM', sparse: 'TF-IDF baseline'};
+const modelNames = {frozen: 'MiniLM encoder', adapted: 'Adapted MiniLM', sparse: 'TF IDF baseline'};
 const phaseNames = {preparing: 'Prepare data', source: 'Get MiniLM', adapting: 'Adapt encoder', fitting: 'Fit and calibrate', evaluating: 'Check holdout'};
 let activeRun = null;
 let latestTiming = null;
@@ -35,7 +35,7 @@ async function poll(jobId, onUpdate) {
   }
 }
 function fmt(value, percent = false) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return 'Unavailable';
   return percent ? `${(Number(value) * 100).toFixed(1)}%` : String(value);
 }
 function metric(label, value, help) {
@@ -74,8 +74,8 @@ function selectSource() {
   } else {
     const preset = presetCatalog[source];
     renderLabels(preset?.labels || []);
-    $('preset-note').textContent = preset ? `${preset.name} uses pinned public synthetic data. Scores here describe a fixed-label projection; they are separate from Open-Jev and JevBench results.` : 'Loading public dataset details…';
-    setStatus('setup-status', preset ? `Ready to prepare ${preset.name}.` : 'Loading public dataset details…');
+    $('preset-note').textContent = preset ? `${preset.name.replaceAll('Open-Jev', 'Open Jev')} uses pinned public synthetic data. Scores here describe a fixed label task and are separate from published model results.` : 'Loading public dataset details…';
+    setStatus('setup-status', preset ? `Ready to prepare ${preset.name.replaceAll('Open-Jev', 'Open Jev')}.` : 'Loading public dataset details…');
   }
 }
 function showProgress(model) {
@@ -99,23 +99,24 @@ function renderEvaluation(target, report) {
     metric('Accuracy', fmt(report.supported_accuracy, true), 'Share of labeled rows given the correct top label.'),
     metric('Macro F1', fmt(report.macro_f1, true), 'Average F1 across labels; each label gets equal weight.'),
     metric('Coverage', fmt(report.coverage, true), `${fmt(report.accepted)} of ${fmt(report.rows)} rows would receive a suggestion; the rest defer for review.`),
-    metric('Error after acceptance', fmt(report.accepted_error_rate, true), 'Wrong suggestions divided by all accepted suggestions. A dash means the model deferred every row.')
+    metric('Error after acceptance', fmt(report.accepted_error_rate, true), 'Wrong suggestions divided by all accepted suggestions. Unavailable means the model deferred every row.')
   );
 }
 function renderRun(result) {
   activeRun = result.run_id;
+  $('workflow-status').textContent = 'Model ready';
   const report = result.holdout;
   if (!report) throw new Error('This saved run predates the current app. Fit a new model to see its holdout results.');
   $('model-name').textContent = modelNames[result.model] || result.model;
-  $('model-source').textContent = result.benchmark?.name || 'Your labeled data';
+  $('model-source').textContent = result.benchmark?.name.replaceAll('Open-Jev', 'Open Jev') || 'Your labeled data';
   $('result-caveat').textContent = result.preset ? 'These synthetic, publicly labeled examples are useful for checking the workflow; they do not predict performance on your company’s messages.' : 'These numbers describe one split of your labeled file. Check label quality, representative sampling and group overlap before relying on them.';
   $('row-count').textContent = `${fmt(report.rows)} holdout rows`;
   $('results-context').textContent = `This exact model was checked on ${fmt(report.rows)} labeled rows kept apart from fitting and threshold selection.`;
   renderEvaluation($('holdout-metrics'), report);
   $('secondary-metrics').replaceChildren(
     metric('Calibration error', fmt(report.ece_10_bins, true), 'Mean gap between predicted confidence and observed accuracy across 10 confidence bins; lower is better.'),
-    metric('Log loss', report.negative_log_likelihood?.toFixed(3) ?? '—', 'Penalizes confident wrong predictions; lower is better.'),
-    metric('Brier score', report.multiclass_brier_mean_sum?.toFixed(3) ?? '—', 'Mean squared probability error across labels; lower is better.')
+    metric('Log loss', report.negative_log_likelihood?.toFixed(3) ?? 'Unavailable', 'Penalizes confident wrong predictions; lower is better.'),
+    metric('Brier score', report.multiclass_brier_mean_sum?.toFixed(3) ?? 'Unavailable', 'Mean squared probability error across labels; lower is better.')
   );
   const split = result.partition_rows || {};
   const details = [
@@ -157,6 +158,7 @@ $('start').addEventListener('click', async () => {
   const model = document.querySelector('input[name="model"]:checked').value;
   $('start').disabled = true; $('results').classList.add('hidden'); $('try').classList.add('hidden'); $('benchmark-current').disabled = true; activeRun = null;
   showProgress(model);
+  $('workflow-status').textContent = 'Fitting model';
   try {
     const request = {model, min_coverage: $('coverage').value, max_accepted_error: $('error').value, confidence: $('confidence').value};
     if (source === 'upload') Object.assign(request, {filename: file.name, content: await readUtf8(file), labels, provenance: $('provenance').value, license_notice: $('license-notice').value});
@@ -167,7 +169,7 @@ $('start').addEventListener('click', async () => {
     renderRun(result);
     setStatus('setup-status', 'Model ready. Holdout results are below.');
     $('results').scrollIntoView({behavior: 'smooth', block: 'start'});
-  } catch (error) { setStatus('setup-status', error.message, true); }
+  } catch (error) { $('workflow-status').textContent = 'Ready to begin'; setStatus('setup-status', error.message, true); }
   finally { stopProgress(); $('start').disabled = false; }
 });
 $('evaluate-ood').addEventListener('click', async () => {
@@ -272,3 +274,14 @@ $('reports-file').addEventListener('change', async () => {
 Promise.all([fetch('/api/presets', {cache: 'no-store'}).then(response => response.json()), fetch('/api/runs/current', {cache: 'no-store'}).then(response => response.json())])
   .then(([catalog, current]) => { presetCatalog = catalog.presets || {}; selectSource(); if (current.run) { renderRun(current.run); setStatus('setup-status', 'Your latest model is ready below. Fit again to replace it.'); } })
   .catch(error => setStatus('setup-status', `Could not load app state: ${error.message}`, true));
+
+const navLinks = [...document.querySelectorAll('.masthead nav a')];
+const sections = navLinks.map(link => document.querySelector(link.getAttribute('href'))).filter(Boolean);
+const sectionObserver = new IntersectionObserver(entries => {
+  for (const entry of entries) {
+    if (entry.isIntersecting) {
+      navLinks.forEach(link => link.classList.toggle('active', link.getAttribute('href') === `#${entry.target.id}`));
+    }
+  }
+}, {rootMargin: '-12% 0px -65% 0px'});
+sections.forEach(section => sectionObserver.observe(section));

@@ -88,6 +88,9 @@ class LocalWebTests(unittest.TestCase):
     def test_invalid_labels_are_rejected_before_job(self):
         with tempfile.TemporaryDirectory() as temp:
             app = LocalApp(Path(temp) / "runs", Path(temp) / "model")
+            default, _ = app._settings({"min_coverage": 0.4, "max_accepted_error": 0.2,
+                                        "confidence": 0.95})
+            self.assertEqual(default, "adapted")
             with self.assertRaises(ValueError):
                 app.start_training({"filename": "x.csv", "content": "text,label\na,A\nb,B\n",
                                     "labels": ["A", "C"], "model": "sparse",

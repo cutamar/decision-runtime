@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="decision-token" content="__CSRF_TOKEN__">
-  <title>Decision Lab — System One</title>
+  <title>Decision Lab</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
   <div class="page-frame">
     <header class="masthead">
-      <a class="wordmark" href="#top" aria-label="Decision Lab home"><span class="mark">D<span>.</span></span><span>Decision Lab<small>by System One</small></span></a>
+      <a class="wordmark" href="#top" aria-label="Decision Lab home"><span class="mark">D<span>.</span></span><span>Decision Lab<small>Local model workspace</small></span></a>
       <nav aria-label="Page sections"><a href="#setup">Set up</a><a href="#results">Results</a><a href="#try">Try a message</a><a href="#timing">Device timing</a></nav>
       <span class="local-tag"><span class="local-dot"></span> Runs on this machine</span>
     </header>
@@ -19,15 +19,15 @@
     <main id="top">
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow">A practical workbench for text decisions</p>
-          <h1 id="hero-title">Train it. <em>Question it.</em><br>See the numbers.</h1>
-          <p class="lead">Turn labeled messages into a local routing model. Try a public synthetic dataset or bring your own, then inspect how this exact model behaves on unseen rows and on text you write.</p>
-          <a class="text-link" href="#setup">Start with a dataset <span aria-hidden="true">↗</span></a>
+          <p class="eyebrow"><span class="eyebrow-dot"></span> WORKSPACE OVERVIEW</p>
+          <h1 id="hero-title">Build a model.<br><em>See how it decides.</em></h1>
+          <p class="lead">Prepare labeled messages, fit a local routing model, and inspect its decisions in one workspace. Start with a public example or use your own data.</p>
         </div>
-        <div class="hero-diagram" aria-hidden="true">
-          <div><span>01</span><strong>Examples</strong><small>what people wrote</small></div>
-          <div><span>02</span><strong>Model</strong><small>what it learned</small></div>
-          <div><span>03</span><strong>Evidence</strong><small>where it is unsure</small></div>
+        <div class="hero-diagram" aria-label="Workflow overview">
+          <div class="workflow-heading"><span>WORKFLOW</span><span class="workflow-ready" id="workflow-status">Ready to begin</span></div>
+          <div><span>01</span><strong>Choose data</strong><small>Pick a task and its labels</small></div>
+          <div><span>02</span><strong>Fit model</strong><small>Adapt MiniLM by default</small></div>
+          <div><span>03</span><strong>Review results</strong><small>Check evidence and try a message</small></div>
         </div>
       </section>
 
@@ -36,8 +36,8 @@
         <div class="setup-grid">
           <div class="pane">
             <label class="field-label" for="data-source">Dataset</label>
-            <select id="data-source"><option value="mail_kind_en">Open-Jev synthetic email kind</option><option value="support_routing_en">Open-Jev synthetic support routing</option><option value="upload">My labeled CSV or JSONL</option></select>
-            <p id="preset-note" class="field-help">Pinned public synthetic data. The app downloads and verifies it before fitting. These tasks are fixed-label projections, so their scores are separate from Open-Jev's published tables.</p>
+            <select id="data-source"><option value="mail_kind_en">Open Jev synthetic email kind</option><option value="support_routing_en">Open Jev synthetic support routing</option><option value="upload">My labeled CSV or JSONL</option></select>
+            <p id="preset-note" class="field-help">Pinned public synthetic data. The app downloads and verifies it before fitting. These tasks are fixed label projections, so their scores are separate from Open Jev's published tables.</p>
             <div id="upload-fields" class="hidden">
               <label class="dropzone" for="dataset-file"><span class="drop-icon" aria-hidden="true">↑</span><strong>Choose a labeled file</strong><span id="file-name">CSV or JSONL · up to 100 MiB</span><input id="dataset-file" type="file" accept=".csv,.jsonl"></label>
               <p class="field-help">Include <code>text</code> and <code>label</code>. Add <code>group_id</code> when messages from the same conversation belong together.</p>
@@ -45,9 +45,9 @@
             <div class="label-preview"><span class="field-label">Labels the model will use</span><div id="label-list" class="chips"><span class="empty-chip">Loading labels…</span></div></div>
           </div>
           <fieldset class="pane model-pane"><legend>Model</legend>
-            <label class="model-option"><input type="radio" name="model" value="frozen" checked><span><strong>MiniLM encoder</strong><small>Use the pretrained encoder and fit a classifier. A good first run.</small></span><b>DEFAULT</b></label>
-            <label class="model-option"><input type="radio" name="model" value="adapted"><span><strong>Adapt MiniLM</strong><small>Also tune its last layer on your labels. Slower, with more compute.</small></span></label>
-            <label class="model-option"><input type="radio" name="model" value="sparse"><span><strong>TF-IDF baseline</strong><small>A fast, lightweight reference that can be surprisingly strong.</small></span></label>
+            <label class="model-option"><input type="radio" name="model" value="adapted" checked><span><strong>Adapt MiniLM</strong><small>Tune the last encoder layer for your labels, then fit a classifier. Uses more compute.</small></span><b>DEFAULT</b></label>
+            <label class="model-option"><input type="radio" name="model" value="frozen"><span><strong>MiniLM encoder</strong><small>Keep the pretrained encoder fixed and fit a classifier.</small></span></label>
+            <label class="model-option"><input type="radio" name="model" value="sparse"><span><strong>TF IDF baseline</strong><small>A fast, lightweight reference that can be surprisingly strong.</small></span></label>
           </fieldset>
         </div>
 
@@ -58,8 +58,8 @@
             <label>Confidence level <input id="confidence" type="number" min="0.01" max="0.99" step="0.01" value="0.95"><small>How cautious the error bound is. Higher values make the threshold harder to satisfy, especially with little data.</small></label>
           </div>
           <div id="data-notes" class="settings-grid two hidden">
-            <label>Where these examples came from <input id="provenance" type="text" value="Operator-supplied routing examples" maxlength="4000"><small>Stored with the model bundle so another developer can trace the data source.</small></label>
-            <label>Permission to use the data <input id="license-notice" type="text" value="Operator-supplied data; permission confirmed by operator" maxlength="4000"><small>Record the license or permission under which you can process these examples.</small></label>
+            <label>Where these examples came from <input id="provenance" type="text" value="Operator supplied routing examples" maxlength="4000"><small>Stored with the model bundle so another developer can trace the data source.</small></label>
+            <label>Permission to use the data <input id="license-notice" type="text" value="Operator supplied data; permission confirmed by operator" maxlength="4000"><small>Record the license or permission under which you can process these examples.</small></label>
           </div>
         </details>
         <div class="run-actions"><button id="start" class="button primary" type="button">Prepare and fit model <span aria-hidden="true">→</span></button><p id="setup-status" class="status" role="status" aria-live="polite">Choose a task to begin.</p></div>
@@ -76,14 +76,14 @@
         <div id="holdout-metrics" class="metric-grid"></div>
         <p id="result-caveat" class="fine-print">These numbers describe this dataset and split. Check representativeness and label quality before relying on them.</p>
         <details class="report-details"><summary>More metrics and run details <span aria-hidden="true">↗</span></summary><div id="run-details" class="detail-grid"></div><div id="secondary-metrics" class="metric-grid secondary-metrics"></div><details><summary>Raw evaluation report</summary><pre id="holdout-report"></pre></details><details><summary>Development diagnostics</summary><pre id="development-report"></pre></details></details>
-        <div id="shift-panel" class="shift-panel hidden"><div><strong>How does it handle shifted examples?</strong><p>Public presets include a separate out-of-distribution set. Run the current model on it to see how the metrics change.</p></div><button id="evaluate-ood" class="button secondary" type="button">Check shift set <span aria-hidden="true">↗</span></button><p id="shift-status" class="status" role="status" aria-live="polite"></p><div id="shift-metrics" class="metric-grid"></div><details id="shift-report-wrap" class="hidden"><summary>Shift-set report</summary><pre id="shift-report"></pre></details></div>
+        <div id="shift-panel" class="shift-panel hidden"><div><strong>How does it handle shifted examples?</strong><p>Public presets include a separate shifted set. Run the current model on it to see how the metrics change.</p></div><button id="evaluate-ood" class="button secondary" type="button">Check shift set <span aria-hidden="true">↗</span></button><p id="shift-status" class="status" role="status" aria-live="polite"></p><div id="shift-metrics" class="metric-grid"></div><details id="shift-report-wrap" class="hidden"><summary>Shift set report</summary><pre id="shift-report"></pre></details></div>
       </section>
 
       <section class="sheet hidden" id="try" aria-labelledby="try-title">
         <div class="section-heading"><span class="section-number">03 / TRY IT</span><div><h2 id="try-title">Give it a message</h2><p>Use the model you just fitted. This text is scored locally and is not added to training data.</p></div></div>
         <label class="field-label" for="trial-text">Message to classify</label><textarea id="trial-text" rows="7" placeholder="Paste a message here…"></textarea><p id="trial-help" class="field-help">Write something similar to the examples in your dataset.</p>
         <button id="try-button" class="button primary" type="button">See prediction <span aria-hidden="true">→</span></button><p id="try-status" class="status" role="status" aria-live="polite"></p>
-        <div id="prediction" class="prediction hidden"><div class="prediction-heading"><div><span class="overline">TOP LABEL</span><strong id="prediction-label">—</strong></div><span id="prediction-policy" class="policy-pill"></span></div><p id="prediction-explanation"></p><div id="probability-list" class="probability-list"></div></div>
+        <div id="prediction" class="prediction hidden"><div class="prediction-heading"><div><span class="overline">TOP LABEL</span><strong id="prediction-label">No result yet</strong></div><span id="prediction-policy" class="policy-pill"></span></div><p id="prediction-explanation"></p><div id="probability-list" class="probability-list"></div></div>
       </section>
 
       <section class="sheet timing-sheet" id="timing" aria-labelledby="timing-title">
@@ -93,7 +93,7 @@
         <div class="timing-tools"><details><summary>Time a copied bundle on this device</summary><div class="settings-grid two"><label>Bundle directory <input id="bundle-path" type="text" placeholder="/path/to/copied/bundle"></label><label>Trusted key file, if signed <input id="public-key-path" type="text" placeholder="/path/to/key.pem"></label></div><label class="file-inline" for="workload-file">Representative texts JSON <span id="workload-name">Choose file</span><input id="workload-file" type="file" accept=".json"></label><button id="benchmark-copied" class="button secondary" type="button">Time copied bundle</button></details><details><summary>Compare saved timing reports</summary><label class="file-inline" for="reports-file">Two or more timing JSON reports <span id="reports-name">Choose files</span><input id="reports-file" type="file" accept=".json" multiple></label><div id="device-comparison" class="table-wrap"></div></details></div>
       </section>
     </main>
-    <footer><span>Decision Lab / System One</span><span>Local models. Inspectable evidence. <a href="https://github.com/cutamar/decision-runtime" target="_blank" rel="noopener noreferrer">Source on GitHub ↗</a></span></footer>
+    <footer><span>Decision Lab</span><span>Local models. Inspectable evidence. <a href="https://github.com/cutamar/decision-runtime" target="_blank" rel="noopener noreferrer">Source on GitHub ↗</a></span></footer>
   </div>
 </body>
 </html>

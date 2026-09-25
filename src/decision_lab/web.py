@@ -138,7 +138,7 @@ class LocalApp:
         return self.run_result(latest.parent.name)
 
     def _settings(self, payload: dict) -> tuple[str, dict]:
-        model_kind = payload.get("model", "frozen")
+        model_kind = payload.get("model", "adapted")
         if not isinstance(model_kind, str) or model_kind not in {"sparse", "frozen", "adapted"}:
             raise ValueError("choose sparse, frozen or adapted")
         try:

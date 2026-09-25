@@ -30,9 +30,10 @@ shown in the app.
 
 Use `docker compose logs -f lab` to inspect startup or job errors, and
 `docker compose down` to stop the service. The default image is large because
-it includes CPU PyTorch for adaptation. For a smaller sparse/frozen-only image,
-build with `ENABLE_ADAPT=0 docker compose up --build -d`; the adapted model
-choice then requires rebuilding with `ENABLE_ADAPT=1`.
+it includes CPU PyTorch for adaptation. For a smaller image without adaptation, build with
+`ENABLE_ADAPT=0 docker compose up --build -d`; select the fixed MiniLM encoder
+or TF IDF baseline in that image. The adapted model choice requires rebuilding
+with `ENABLE_ADAPT=1`.
 
 If you are in the platform repository, run
 `docker compose -f runtime/compose.yaml up --build -d` instead. The Docker Compose
@@ -59,12 +60,13 @@ Install the lab extra and start the app from a local checkout:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[lab]'
+.venv/bin/python -m pip install 'torch==2.14.0+cpu' --index-url https://download.pytorch.org/whl/cpu
+.venv/bin/python -m pip install -e '.[lab,adapt]'
 .venv/bin/decision-web
 ```
 
 Open `http://127.0.0.1:8765`. The default dataset is a pinned public
-synthetic email task and the default model is a frozen MiniLM encoder. You can
+synthetic email task and the default model adapts the last MiniLM layer. You can
 switch to support routing or upload your own UTF-8 CSV/JSONL file with `text`
 and `label` fields (30 or more accepted rows, 2–20 labels). `group_id` is
 recommended for related messages. The app discovers labels, validates the
@@ -73,9 +75,10 @@ file, makes a group-aware split, fits the chosen model, and evaluates that
 results, calibration, the review policy and raw reports, then write your own
 message to see its predicted label, probabilities and whether the policy would
 suggest it or defer it for review. Your trial text is not saved as training
-material. For last-layer MiniLM adaptation, install `.[lab,adapt]` first.
-On a CPU-only machine, install a compatible CPU PyTorch wheel before the
-`adapt` extra. MiniLM source files are downloaded at a pinned revision and
+material. The default adapted model needs CPU PyTorch. On a CPU-only machine,
+install a compatible CPU PyTorch wheel before the `adapt` extra. For a lighter
+install, use `.[lab]` and select the fixed MiniLM encoder or TF IDF baseline
+in the app. MiniLM source files are downloaded at a pinned revision and
 verified by hash.
 
 The public presets are narrow **fixed-label projections** of the
