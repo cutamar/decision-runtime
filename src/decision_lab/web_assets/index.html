@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="decision-token" content="__CSRF_TOKEN__">
+  <title>Decision Lab</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="eyebrow">SYSTEM ONE / LOCAL MVP</div>
+      <h1>Decision Lab</h1>
+      <p>Adapt a fixed-label routing model to your own data and inspect its measured behavior. Files and models stay on this machine.</p>
+      <div class="notice">Exploratory workflow: development and policy partitions are shown. The reserved final test stays untouched, and this app does not qualify a production release.</div>
+    </header>
+
+    <section class="card" aria-labelledby="data-title">
+      <div class="section-head"><span class="step">01</span><div><h2 id="data-title">Choose your data</h2><p>Use your own labeled CSV/JSONL, or a pinned public Open-Jev task projection.</p></div></div>
+      <label>Data source<select id="data-source"><option value="upload">My labeled data</option><option value="mail_kind_en">Open-Jev · English email kind (6 labels)</option><option value="support_routing_en">Open-Jev · English support routing (4 labels)</option></select></label>
+      <p id="preset-note" class="hint hidden">Public synthetic controls. The app preserves the source train, calibration and test splits; it divides validation groups between development and policy. This is a derived fixed-label experiment, not an official Open-Jev or JevBench score.</p>
+      <div id="upload-fields">
+        <label class="filebox" for="dataset-file"><strong>Choose a routing dataset</strong><span id="file-name">No file selected</span><input id="dataset-file" type="file" accept=".csv,.jsonl" required></label>
+        <p class="hint">CSV or JSONL needs <code>text</code> and <code>label</code>. Add <code>group_id</code> and <code>occurred_at</code> when available.</p>
+      </div>
+      <div class="grid two">
+        <label>Label IDs <small>Detected from your file, or fixed by the public preset.</small><input id="labels" type="text" placeholder="account, billing, technical" required></label>
+        <label>Model to fit<select id="model"><option value="sparse">Sparse TF-IDF baseline · fast</option><option value="frozen">Frozen MiniLM + classifier</option><option value="adapted">Adapt MiniLM last layer + classifier</option></select></label>
+      </div>
+      <p class="hint">The MiniLM paths download and verify the pinned source once. Adaptation uses a bounded recipe and may take time on CPU.</p>
+    </section>
+
+    <section class="card" aria-labelledby="plan-title">
+      <div class="section-head"><span class="step">02</span><div><h2 id="plan-title">Exploratory plan</h2><p>These targets guide policy selection. They are example values until a workflow owner agrees on a real evaluation plan.</p></div></div>
+      <div class="grid three">
+        <label>Minimum coverage<input id="coverage" type="number" min="0.01" max="0.99" step="0.01" value="0.40"></label>
+        <label>Maximum accepted error bound<input id="error" type="number" min="0.01" max="0.99" step="0.01" value="0.10"></label>
+        <label>Confidence level<input id="confidence" type="number" min="0.01" max="0.99" step="0.01" value="0.95"></label>
+      </div>
+      <div class="grid two">
+        <label>Data provenance<input id="provenance" value="Operator-supplied exploratory routing examples" maxlength="4000"></label>
+        <label>Data rights note<input id="license-notice" value="Operator-supplied data; permission must be verified before customer use" maxlength="4000"></label>
+      </div>
+      <button id="start" type="button">Prepare, fit and evaluate <span aria-hidden="true">→</span></button>
+      <p id="status" class="status" role="status" aria-live="polite">Ready when you are.</p>
+    </section>
+
+    <section id="results" class="card hidden" aria-labelledby="results-title">
+      <div class="section-head"><span class="step">03</span><div><h2 id="results-title">Development results</h2><p>Metrics come from the exported local bundle. The candidate remains exploratory.</p></div></div>
+      <div id="metrics" class="metrics"></div>
+      <div class="grid two">
+        <div><h3>Dataset and split</h3><div id="dataset-summary" class="detail"></div></div>
+        <div><h3>Decision behavior</h3><div id="decision-summary" class="detail"></div></div>
+      </div>
+      <details><summary>Full development report</summary><pre id="report"></pre></details>
+      <div id="published-evaluation" class="hidden">
+        <h3>Published held-out splits</h3>
+        <p class="hint">Run these after selecting the candidate. Labels are public, so results are exploratory diagnostics and cannot be compared with the published Open-Jev or JevBench tables.</p>
+        <button id="evaluate-test" class="secondary" type="button">Evaluate published test</button>
+        <button id="evaluate-ood" class="secondary" type="button">Evaluate published OOD</button>
+        <p id="published-status" class="status" role="status" aria-live="polite"></p>
+        <div id="published-metrics" class="metrics"></div>
+        <details id="published-detail" class="hidden"><summary>Full published-split report</summary><pre id="published-report"></pre></details>
+      </div>
+      <p class="hint">The test partition was reserved but never read by candidate training. A final release needs a frozen plan, target-machine resource checks and a separate finalization step.</p>
+    </section>
+
+    <section id="external" class="card hidden" aria-labelledby="external-title">
+      <div class="section-head"><span class="step">04</span><div><h2 id="external-title">Evaluate a separate labeled file</h2><p>Use new records with the same labels. The app reports descriptive metrics; it cannot verify that these examples are independent or untouched.</p></div></div>
+      <label class="filebox" for="evaluation-file"><strong>Choose labeled evaluation data</strong><span id="evaluation-name">No file selected</span><input id="evaluation-file" type="file" accept=".csv,.jsonl"></label>
+      <button id="evaluate" class="secondary" type="button">Evaluate this model <span aria-hidden="true">→</span></button>
+      <p id="evaluation-status" class="status" role="status" aria-live="polite"></p>
+      <div id="external-metrics" class="metrics"></div>
+      <details id="external-detail" class="hidden"><summary>Full external report</summary><pre id="external-report"></pre></details>
+    </section>
+
+    <section class="card" aria-labelledby="timing-title">
+      <div class="section-head"><span class="step">05</span><div><h2 id="timing-title">Device timing</h2><p>Measure the exact bundle on this machine: cold load, warm p50/p95 latency, sequential throughput and peak memory.</p></div></div>
+      <button id="benchmark-current" type="button" disabled>Time the current model <span aria-hidden="true">→</span></button>
+      <p class="hint">Uses 20 warmups and 200 timed calls on development texts. The benchmark saves its text workload beside the bundle. Run the same bundle and workload on each device for a fair comparison. CPU inference only.</p>
+      <details><summary>Time a copied bundle on this device</summary>
+        <div class="grid two"><label>Local bundle directory<input id="bundle-path" type="text" placeholder="/path/to/copied/bundle"></label><label>Trusted public key file, if signed<input id="public-key-path" type="text" placeholder="/path/to/key.pem"></label></div>
+        <label class="filebox" for="workload-file"><strong>Representative texts JSON array</strong><span id="workload-name">No file selected</span><input id="workload-file" type="file" accept=".json"></label>
+        <button id="benchmark-copied" class="secondary" type="button">Time copied bundle</button>
+      </details>
+      <p id="timing-status" class="status" role="status" aria-live="polite"></p>
+      <div id="timing-metrics" class="metrics"></div>
+      <div id="timing-device" class="detail"></div>
+      <button id="download-timing" class="secondary hidden" type="button">Download timing JSON</button>
+      <details><summary>Compare saved device reports</summary>
+        <label class="filebox" for="reports-file"><strong>Select two or more timing JSON files</strong><span id="reports-name">No files selected</span><input id="reports-file" type="file" accept=".json" multiple></label>
+        <div id="device-comparison" class="detail"></div>
+      </details>
+    </section>
+  </main>
+</body>
+</html>

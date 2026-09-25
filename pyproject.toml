@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "decision-runtime"
-version = "0.1.0"
-description = "Offline fixed-label decision runtime and evaluation tools"
+version = "0.2.0"
+description = "Offline decision runtime, local model lab, and evaluation tools"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -13,16 +13,26 @@ dependencies = ["cryptography>=40"]
 
 [project.optional-dependencies]
 neural = ["numpy>=2,<3", "onnx>=1.23,<2", "onnxruntime>=1.30,<2", "tokenizers>=0.23,<1"]
+lab = ["numpy==2.5.3", "scipy==1.18.1", "scikit-learn==1.9.1", "onnxruntime==1.30.0", "onnx==1.23.0", "tokenizers==0.23.2"]
+adapt = ["torch==2.14.0", "transformers==5.17.0", "safetensors==0.8.0", "onnxscript==0.7.2"]
 
 [project.scripts]
 decision-inspect = "decision_runtime.inspect:main"
 decision-evaluate = "decision_runtime.evaluate:main"
 decision-benchmark = "decision_runtime.benchmark:main"
 decision-shadow = "decision_runtime.shadow:main"
+decision-web = "decision_lab.web:main"
+decision-import = "decision_lab.importer:main"
+decision-split = "decision_lab.splits:main"
+decision-train = "decision_lab.train:main"
+decision-train-encoder = "decision_lab.train_encoder:main"
+decision-download-encoder = "decision_lab.model_source:main"
+decision-adapt-encoder = "decision_lab.adapt_encoder:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["decision_runtime*"]
+include = ["decision_runtime*", "decision_lab*"]
 
 [tool.setuptools.package-data]
 decision_runtime = ["schemas/*.json"]
+decision_lab = ["web_assets/*.html", "web_assets/*.css", "web_assets/*.js", "licenses/*.txt"]

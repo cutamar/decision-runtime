@@ -4,7 +4,8 @@ Apache-2.0 Python SDK for offline, fixed-label text decisions. It loads complete
 versioned bundles, verifies hashes and optional Ed25519 signatures, applies the
 exported preprocessing, calibration and abstention policy, and runs locally
 without a platform connection. It also includes local evaluation, inspection,
-benchmark and shadow-mode tools.
+benchmark and shadow-mode tools. The optional local lab offers dataset import,
+sparse or MiniLM candidate fitting, evaluation and device timing in a browser.
 
 This directory is an independently buildable package. From this runtime directory
 (or its separate Git repository):
@@ -16,6 +17,47 @@ python -m pip install -e '.[neural]'
 ```
 
 From the platform repository root, use `python -m pip install -e './runtime[neural]'`.
+
+## Local model lab
+
+Install the lab extra and start the app from a local checkout:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e '.[lab]'
+.venv/bin/decision-web
+```
+
+Open `http://127.0.0.1:8765`. You can upload a UTF-8 CSV/JSONL file with
+`text,label` fields, choose a sparse or frozen MiniLM candidate, and evaluate
+the exported bundle against a separate labeled file. To tune the last MiniLM
+layer, install `.[lab,adapt]` first and choose **Adapted MiniLM**. On a CPU-only
+machine, install a compatible CPU PyTorch wheel before the `adapt` extra.
+MiniLM source files are downloaded at a pinned revision and verified by hash.
+
+The app also offers two pinned public Open-Jev **derived fixed-label** presets:
+English email kind (six labels) and English support routing (four labels). The
+first use downloads and verifies public synthetic files from Hugging Face; no
+benchmark rows or model weights are included in this repository. You can run
+the publisher's test and OOD subsets after fitting. These are software and
+synthetic-data diagnostics, **not official Open-Jev or JevBench scores** or
+evidence of real customer accuracy. See [BENCHMARKS.md](BENCHMARKS.md) for
+source rights, selection rules, split counts and limitations.
+
+The **Device timing** section measures cold model load, 200 sequential CPU
+predictions after 20 warmups, p50/p95 latency, throughput and peak process RSS.
+For another machine, copy the *same* bundle and the run's
+`benchmark-texts.json`, start this app there, and use **Time a copied bundle**.
+Download both JSON reports and select them in **Compare timing reports**. The
+app compares reports only when bundle manifest hash, workload hash and sample
+count match. Measurements depend on the machine, software environment and
+workload. They do not claim phone, GPU or hosted-device performance.
+
+The server binds only to `127.0.0.1` and saves uploads, candidate bundles and
+reports in `data/web-runs/` under the current directory by default. Run it on
+a trusted machine with permitted data; it has one local operator, no account
+isolation and no hosted upload service. Training and evaluation are exploratory.
+They do not issue a qualified production release.
 
 For a signed bundle, obtain its trusted public key separately from the bundle:
 
