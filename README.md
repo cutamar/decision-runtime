@@ -6,13 +6,16 @@ exported preprocessing, calibration and abstention policy, and runs locally
 without a platform connection. It also includes local evaluation, inspection,
 benchmark and shadow-mode tools.
 
-This directory is an independently buildable package. From the parent project:
+This directory is an independently buildable package. From this runtime directory
+(or its separate Git repository):
 
 ```bash
-python -m pip install -e ./runtime
+python -m pip install -e .
 # Add the neural extra to load MiniLM ONNX bundles:
-python -m pip install -e './runtime[neural]'
+python -m pip install -e '.[neural]'
 ```
+
+From the platform repository root, use `python -m pip install -e './runtime[neural]'`.
 
 For a signed bundle, obtain its trusted public key separately from the bundle:
 
@@ -44,6 +47,6 @@ in [examples](examples).
 The package contains no telemetry or model weights. Customer bundles and data
 remain under their own permissions and notices.
 
-Run the standalone contract tests with `python -m unittest discover -s runtime/tests`
-from the parent directory. A wheel can be built with
-`python -m pip wheel --no-deps ./runtime -w runtime/dist`.
+Run the standalone contract tests with `python -m unittest discover -s tests`
+from this directory. A wheel can be built with
+`python -m pip wheel --no-deps . -w dist`.
