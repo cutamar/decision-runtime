@@ -1,15 +1,52 @@
-# Decision Runtime
+<div align="center">
 
-Apache-2.0 Python SDK for offline, fixed-label text decisions. It loads complete
-versioned bundles, verifies hashes and optional Ed25519 signatures, applies the
-exported preprocessing, calibration and abstention policy, and runs locally
-without a platform connection. It also includes local evaluation, inspection,
-benchmark and shadow-mode tools. The optional local lab offers dataset import,
-sparse or MiniLM candidate fitting, evaluation and device timing in a browser.
+# ⚙️ Decision Runtime
 
-## Run with Docker Compose
+**An Apache-2.0 Python SDK for offline, fixed-label text decisions — plus a local lab to build the models.**
 
-From the [public repository](https://github.com/cutamar/decision-runtime):
+![License](https://img.shields.io/badge/license-Apache--2.0-blue)
+![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
+![Inference](https://img.shields.io/badge/inference-offline%20CPU-44cc11)
+![Telemetry](https://img.shields.io/badge/telemetry-none-red)
+
+</div>
+
+Load a complete versioned bundle, verify its hashes and optional Ed25519
+signature, apply the exported preprocessing, calibration and abstention policy,
+and get a decision — all **locally, with no platform connection**. The package
+also ships evaluation, inspection, benchmark and shadow-mode tools, and an
+optional **browser lab** for building candidates from your own labeled data.
+
+---
+
+## 📑 Contents
+
+- [✨ What it does](#-what-it-does)
+- [🚀 Quick start](#-quick-start)
+- [🧪 The local model lab](#-the-local-model-lab)
+- [🧠 Using the SDK](#-using-the-sdk)
+- [🔒 Privacy & safety](#-privacy--safety)
+- [🛠️ Develop](#️-develop)
+
+---
+
+## ✨ What it does
+
+- 📦 **Runs bundles, not guesswork.** Everything that affects a decision —
+  tokenizer, encoder/graph, labels, calibration, thresholds, policy — travels in
+  one signed, versioned bundle.
+- 🎯 **Knows when to defer.** Calibrated probabilities and an explicit `abstain`
+  result mean an uncertain input is deferred, never forced.
+- 🏠 **Local by default.** No network, no telemetry, no bundled weights; the SDK
+  never phones home or takes a business action for you.
+- 🧪 **Build in the browser.** The lab imports data, fits a sparse or MiniLM
+  candidate, evaluates the exported model, and times it — all on your machine.
+
+---
+
+## 🚀 Quick start
+
+### 🐳 Docker Compose (simplest)
 
 ```bash
 git clone https://github.com/cutamar/decision-runtime.git
@@ -17,48 +54,50 @@ cd decision-runtime
 docker compose up --build -d
 ```
 
-Open **http://127.0.0.1:8765**. The default image includes sparse, frozen
-MiniLM, adapted MiniLM and LoRA MiniLM choices. Its first build installs the CPU training
-dependencies; the pinned MiniLM files and public benchmark data download on
-first use. The app and model execution stay local. Compose publishes the port
-only on the host's loopback address and stores uploads, cached data and model
-bundles in the persistent `lab_data` volume. `docker compose down` stops the
-app and keeps that volume. To inspect run files, use
-`docker compose exec lab ls /data/web-runs`; to copy a bundle to the host, use
-`docker compose cp lab:/data/web-runs/RUN_ID/bundle ./bundle` with the run ID
-shown in the app.
+Open **http://127.0.0.1:8765**. The default image includes the **sparse, frozen
+MiniLM, adapted MiniLM and LoRA MiniLM** choices. First build installs CPU
+training dependencies; the pinned MiniLM files and public benchmark data
+download on first use. Everything runs locally, and Compose publishes the port
+only on host loopback.
 
-Use `docker compose logs -f lab` to inspect startup or job errors, and
-`docker compose down` to stop the service. The default image is large because
-it includes CPU PyTorch for adaptation. For a smaller image without adaptation, build with
-`ENABLE_ADAPT=0 docker compose up --build -d`; select the fixed MiniLM encoder
-or TF IDF baseline in that image. The adapted and LoRA model choices require
-rebuilding with `ENABLE_ADAPT=1`.
+> 💡 **Lighter image:** the default is large because it bundles CPU PyTorch. Build
+> without adaptation via `ENABLE_ADAPT=0 docker compose up --build -d` and use
+> the frozen encoder or TF-IDF baseline; the adapted and LoRA choices need
+> `ENABLE_ADAPT=1`.
 
-If you are in the platform repository, run
-`docker compose -f runtime/compose.yaml up --build -d` instead. The Docker Compose
-plugin is required (`docker compose version`). On Linux with Docker Engine but no
-Compose command, install the Compose plugin using
-[Docker's instructions](https://docs.docker.com/compose/install/linux/).
+<details>
+<summary>🔧 Compose operations (logs, run files, copying a bundle)</summary>
 
-## Run directly with Python
+```bash
+docker compose logs -f lab                                   # startup / job errors
+docker compose exec lab ls /data/web-runs                    # list run files
+docker compose cp lab:/data/web-runs/RUN_ID/bundle ./bundle  # copy a bundle out
+docker compose down                                          # stop, keep the lab_data volume
+```
 
-This directory is an independently buildable package. From this runtime directory
-(or its separate Git repository):
+The Compose plugin is required (`docker compose version`). On Linux with Docker
+Engine but no Compose command, install it via
+[Docker's instructions](https://docs.docker.com/compose/install/linux/). From
+the platform repository, use `docker compose -f runtime/compose.yaml up --build -d`.
+
+</details>
+
+### 🐍 Python package
 
 ```bash
 python -m pip install -e .
-# Add the neural extra to load MiniLM ONNX bundles:
-python -m pip install -e '.[neural]'
+python -m pip install -e '.[neural]'   # to load MiniLM ONNX bundles
 ```
 
 From the platform repository root, use `python -m pip install -e './runtime[neural]'`.
 
-## Local model lab
+---
+
+## 🧪 The local model lab
 
 ![Decision Lab local web app](docs/decision-lab.png)
 
-Install the lab extra and start the app from a local checkout:
+Install the lab extra and launch the app from a local checkout:
 
 ```bash
 python3 -m venv .venv
@@ -67,59 +106,69 @@ python3 -m venv .venv
 .venv/bin/decision-web
 ```
 
-Open `http://127.0.0.1:8765`. The default dataset is a pinned public
-synthetic email task and the default model adapts the last MiniLM layer. You can
-switch to support routing or upload your own UTF-8 CSV/JSONL file with `text`
-and `label` fields (30 or more accepted rows, 2–20 labels). `group_id` is
-recommended for related messages. The app discovers labels, validates the
-file, makes a group-aware split, fits the chosen model, and evaluates that
-**same exported model** on its holdout. You can inspect metrics, per-label
-results, calibration, the review policy and raw reports, then write your own
-message to see its predicted label, probabilities and whether the policy would
-suggest it or defer it for review. Your trial text is not saved as training
-material. Model choices are a sparse TF-IDF baseline, the frozen MiniLM
-encoder, last-layer-adapted MiniLM, and LoRA-adapted MiniLM (small low-rank
-adapters on attention query/value, merged back into the exported encoder). The
-default adapted model and the LoRA option need CPU PyTorch. On a CPU-only machine,
-install a compatible CPU PyTorch wheel before the `adapt` extra. For a lighter
-install, use `.[lab]` and select the fixed MiniLM encoder or TF IDF baseline
-in the app. MiniLM source files are downloaded at a pinned revision and
-verified by hash.
+Open **http://127.0.0.1:8765**. Pick a public preset or upload your own
+UTF-8 CSV/JSONL with `text` and `label` fields (**30+ accepted rows, 2–20
+labels**; add `group_id` to keep related messages together). The app discovers
+labels, validates the file, makes a **group-aware split**, fits the chosen
+model, and evaluates **that same exported model** on a held-out slice. Inspect
+metrics, per-label results, calibration and the review policy — then type a
+message to see its predicted label, probabilities, and whether the policy would
+suggest or defer it. Your trial text is never saved as training material.
 
-The public presets are narrow **fixed-label projections** of the
+### 🤖 Model choices
+
+| Choice | What it is | Needs PyTorch? |
+|---|---|---|
+| **TF-IDF baseline** | Sparse linear classifier — small and fast | No — `.[lab]` is enough |
+| **Frozen MiniLM** | Pinned encoder + fitted linear head | No |
+| **Adapted MiniLM** | Last transformer layer fine-tuned, re-exported to ONNX | Yes — `.[lab,adapt]` |
+| **LoRA MiniLM** | Low-rank adapters on attention Q/V, merged back into the encoder | Yes — `.[lab,adapt]` |
+
+> On a CPU-only machine, install a compatible CPU PyTorch wheel **before** the
+> `adapt` extra. For a lighter install, use `.[lab]` and pick the frozen encoder
+> or TF-IDF baseline. MiniLM source files download at a pinned revision and are
+> verified by hash.
+
+### 🎛️ Evaluation settings
+
+These three numbers shape the accept/defer policy — the app always reports the
+**observed** holdout coverage and accepted error separately from these goals.
+
+| Setting | Meaning |
+|---|---|
+| **Coverage goal** | Desired share of messages that receive a label |
+| **Maximum error bound** | Upper confidence bound on error among accepted suggestions |
+| **Confidence level** | How conservative that bound is |
+
+If every row defers, accepted error is shown as *unavailable*. Results describe
+one split; check them on authorized, representative data before relying on them.
+
+### 📚 Public presets
+
+Narrow **fixed-label projections** of the
 [Open-Jev dataset](https://huggingface.co/datasets/ZefanCai/Open-Jev): English
 email kind (six labels) and English support routing (four labels). First use
-downloads and verifies synthetic files from Hugging Face. A separate shifted
-set can be checked after fitting each preset. These diagnostics are **not
-Open-Jev or JevBench scores** and do not establish customer accuracy. See
-[BENCHMARKS.md](BENCHMARKS.md) for exact mapping, counts, rights, results and
-comparison limits.
+downloads and verifies the synthetic files from Hugging Face, and a separate
+**shifted set** can be checked after fitting. These diagnostics are **not
+Open-Jev or JevBench scores** — see [BENCHMARKS.md](BENCHMARKS.md) for mapping,
+counts, rights, and comparison limits.
 
-The evaluation settings control the review policy: **coverage goal** is the
-desired share of messages receiving a label, **maximum error bound** limits
-the upper confidence bound on error among accepted suggestions, and
-**confidence level** controls how conservative that bound is. The app displays
-the observed holdout coverage and accepted error separately from those goals.
-If every row defers, accepted error is shown as unavailable. Results describe
-one split and should be checked on authorized, representative data before use.
+### ⏱️ Device timing
 
-The **Device timing** section measures cold model load, 200 sequential CPU
-predictions after 20 warmups, p50/p95 latency, throughput and peak process RSS.
-For another machine, copy the *same* bundle and the run's
-`benchmark-texts.json`, start this app there, and use **Time a copied bundle**.
-Download both JSON reports and select them in **Compare timing reports**. The
-app compares reports only when bundle manifest hash, workload hash and sample
-count match. Measurements depend on the machine, software environment and
-workload. They do not claim phone, GPU or hosted-device performance.
+Measures cold model load, 200 sequential CPU predictions after 20 warmups,
+p50/p95 latency, throughput and peak RSS. To compare machines: copy the *same*
+bundle and the run's `benchmark-texts.json`, run the app there, and use **Time a
+copied bundle**; then load both JSON reports into **Compare timing reports**
+(matched only when bundle hash, workload hash and sample count agree).
+Measurements are machine- and workload-specific and make no phone/GPU/hosted
+claim.
 
-Direct Python runs bind only to `127.0.0.1` by default and save uploads,
-candidate bundles and reports in `data/web-runs/` under the current directory.
-The Compose setup listens inside its container and publishes only to host
-loopback. Run the app on
-a trusted machine with permitted data; it has one local operator, no account
-isolation and no hosted upload service. Training and evaluation are exploratory and do not issue a qualified production release.
+---
 
-For a signed bundle, obtain its trusted public key separately from the bundle:
+## 🧠 Using the SDK
+
+Load a **signed** bundle with its trusted public key obtained separately from
+the bundle:
 
 ```python
 from decision_runtime import DecisionModel
@@ -129,9 +178,19 @@ result = model.predict("Please help with my invoice")
 print(result.to_dict())
 ```
 
-For an unsigned bundle created locally, pass `allow_unsigned=True` explicitly.
-Only a qualified release can return an actionable `accepted` choice. Evaluation
-mode returns `would_accept` or `would_defer` without an actionable choice.
+For a locally built **unsigned** bundle, pass `allow_unsigned=True` explicitly.
+Only a *qualified* release returns an actionable `accepted` choice; evaluation
+mode returns `would_accept` / `would_defer` without acting.
+
+### 🧰 Command-line tools
+
+| Command | Purpose |
+|---|---|
+| `decision-inspect` | Show the bundle manifest, versions and qualification status |
+| `decision-evaluate` | Score labeled CSV/JSONL: accuracy, macro F1, coverage, accepted error, calibration, confusion matrix |
+| `decision-benchmark` | Cold load, warm latency, throughput and peak RSS |
+| `decision-shadow` | Batch predictions by ID, without copying text or acting |
+| `decision-web` | Launch the local model lab |
 
 ```bash
 decision-inspect router-v1 --trusted-public-key trusted-public.pem
@@ -139,16 +198,31 @@ decision-evaluate router-v1 labeled.csv --trusted-public-key trusted-public.pem 
 decision-benchmark router-v1 --texts representative-texts.json --output benchmark.json
 ```
 
-`labeled.csv` needs `text,label` columns. JSONL accepts objects with the same
-fields. The evaluator uses the local inference kernel and reports label accuracy,
-macro F1, coverage, accepted error, calibration and a confusion matrix. It does
-not claim independent sampling or production qualification. The format contract
-is in [BUNDLE_FORMAT.md](BUNDLE_FORMAT.md). A runnable sparse-bundle example is
+`labeled.csv` needs `text,label` columns (JSONL accepts objects with the same
+fields). The evaluator uses the local inference kernel and does **not** claim
+independent sampling or production qualification. The format contract is in
+[BUNDLE_FORMAT.md](BUNDLE_FORMAT.md), and a runnable sparse-bundle example lives
 in [examples](examples).
 
-The package contains no telemetry or model weights. Customer bundles and data
-remain under their own permissions and notices.
+---
 
-Run the standalone contract tests with `python -m unittest discover -s tests`
-from this directory. A wheel can be built with
-`python -m pip wheel --no-deps . -w dist`.
+## 🔒 Privacy & safety
+
+- 🚫 **No telemetry, no bundled weights.** Customer bundles and data stay under
+  their own permissions and notices.
+- 🏠 **Loopback only.** Direct Python runs bind to `127.0.0.1` and save uploads,
+  candidate bundles and reports in `data/web-runs/`; Compose publishes only to
+  host loopback.
+- 👤 **Single operator.** No account isolation and no hosted upload service — run
+  on a trusted machine with permitted data.
+- 🧪 **Exploratory by design.** Lab training and evaluation do **not** issue a
+  qualified production release.
+
+---
+
+## 🛠️ Develop
+
+```bash
+python -m unittest discover -s tests   # standalone contract tests
+python -m pip wheel --no-deps . -w dist  # build a wheel
+```
