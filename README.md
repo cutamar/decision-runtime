@@ -1,6 +1,8 @@
 <div align="center">
 
-# ⚙️ Decision Runtime
+<img src="docs/banner.png" alt="Decision Runtime — Local. Deterministic. Deferrable." width="840">
+
+# Decision Runtime
 
 **An Apache-2.0 Python SDK for offline, fixed-label text decisions — plus a local lab to build the models.**
 
