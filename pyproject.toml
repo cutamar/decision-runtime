@@ -28,6 +28,7 @@ decision-train = "decision_lab.train:main"
 decision-train-encoder = "decision_lab.train_encoder:main"
 decision-download-encoder = "decision_lab.model_source:main"
 decision-adapt-encoder = "decision_lab.adapt_encoder:main"
+decision-lora-encoder = "decision_lab.lora_encoder:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

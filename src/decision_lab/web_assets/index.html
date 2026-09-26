@@ -11,9 +11,19 @@
 <body>
   <div class="page-frame">
     <header class="masthead">
-      <a class="wordmark" href="#top" aria-label="Decision Lab home"><span class="mark">D<span>.</span></span><span>Decision Lab<small>Local model workspace</small></span></a>
-      <nav aria-label="Page sections"><a href="#setup">Set up</a><a href="#results">Results</a><a href="#try">Try a message</a><a href="#timing">Device timing</a></nav>
-      <span class="local-tag"><span class="local-dot"></span> Runs on this machine</span>
+      <div class="nav-top">
+        <a class="wordmark" href="#top" aria-label="Decision Lab home"><span class="mark">D<span>.</span></span><span>Decision Lab<small>Local model workspace</small></span></a>
+        <button id="nav-toggle" class="nav-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/><path d="M15 9l-3 3 3 3"/></svg>
+        </button>
+      </div>
+      <nav aria-label="Page sections">
+        <a href="#setup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg><span class="nav-label">Set up</span></a>
+        <a href="#results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="nav-label">Results</span></a>
+        <a href="#try"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="nav-label">Try a message</span></a>
+        <a href="#timing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M9 2h6"/></svg><span class="nav-label">Device timing</span></a>
+      </nav>
+      <span class="local-tag"><span class="local-dot"></span> <span class="tag-text">Runs on this machine</span></span>
     </header>
 
     <main id="top">
@@ -46,6 +56,7 @@
           </div>
           <fieldset class="pane model-pane"><legend>Model</legend>
             <label class="model-option"><input type="radio" name="model" value="adapted" checked><span><strong>Adapt MiniLM</strong><small>Tune the last encoder layer for your labels, then fit a classifier. Uses more compute.</small></span><b>DEFAULT</b></label>
+            <label class="model-option"><input type="radio" name="model" value="lora"><span><strong>LoRA MiniLM</strong><small>Insert small low-rank adapters into MiniLM's attention and train only those. Lighter to tune than adapting a full layer.</small></span></label>
             <label class="model-option"><input type="radio" name="model" value="frozen"><span><strong>MiniLM encoder</strong><small>Keep the pretrained encoder fixed and fit a classifier.</small></span></label>
             <label class="model-option"><input type="radio" name="model" value="sparse"><span><strong>TF IDF baseline</strong><small>A fast, lightweight reference that can be surprisingly strong.</small></span></label>
           </fieldset>

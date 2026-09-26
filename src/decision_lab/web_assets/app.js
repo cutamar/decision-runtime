@@ -1,7 +1,7 @@
 const token = document.querySelector('meta[name="decision-token"]').content;
 const $ = id => document.getElementById(id);
-const modelNames = {frozen: 'MiniLM encoder', adapted: 'Adapted MiniLM', sparse: 'TF IDF baseline'};
-const phaseNames = {preparing: 'Prepare data', source: 'Get MiniLM', adapting: 'Adapt encoder', fitting: 'Fit and calibrate', evaluating: 'Check holdout'};
+const modelNames = {frozen: 'MiniLM encoder', adapted: 'Adapted MiniLM', lora: 'LoRA MiniLM', sparse: 'TF IDF baseline'};
+const phaseNames = {preparing: 'Prepare data', source: 'Get MiniLM', adapting: 'Tune encoder', fitting: 'Fit and calibrate', evaluating: 'Check holdout'};
 let activeRun = null;
 let latestTiming = null;
 let presetCatalog = {};
@@ -79,7 +79,7 @@ function selectSource() {
   }
 }
 function showProgress(model) {
-  const phases = model === 'sparse' ? ['preparing', 'fitting', 'evaluating'] : model === 'adapted' ? ['preparing', 'source', 'adapting', 'fitting', 'evaluating'] : ['preparing', 'source', 'fitting', 'evaluating'];
+  const phases = model === 'sparse' ? ['preparing', 'fitting', 'evaluating'] : (model === 'adapted' || model === 'lora') ? ['preparing', 'source', 'adapting', 'fitting', 'evaluating'] : ['preparing', 'source', 'fitting', 'evaluating'];
   $('progress-steps').replaceChildren(...phases.map(phase => { const item = document.createElement('li'); item.dataset.phase = phase; item.textContent = phaseNames[phase]; return item; }));
   $('training-progress').classList.remove('hidden');
   const started = Date.now();
@@ -274,6 +274,20 @@ $('reports-file').addEventListener('change', async () => {
 Promise.all([fetch('/api/presets', {cache: 'no-store'}).then(response => response.json()), fetch('/api/runs/current', {cache: 'no-store'}).then(response => response.json())])
   .then(([catalog, current]) => { presetCatalog = catalog.presets || {}; selectSource(); if (current.run) { renderRun(current.run); setStatus('setup-status', 'Your latest model is ready below. Fit again to replace it.'); } })
   .catch(error => setStatus('setup-status', `Could not load app state: ${error.message}`, true));
+
+const navToggle = $('nav-toggle');
+function setNav(collapsed) {
+  document.body.dataset.nav = collapsed ? 'collapsed' : 'expanded';
+  navToggle.setAttribute('aria-expanded', String(!collapsed));
+  navToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+  navToggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+}
+try { setNav(localStorage.getItem('decision-nav') === 'collapsed'); } catch { setNav(false); }
+navToggle.addEventListener('click', () => {
+  const collapsed = document.body.dataset.nav !== 'collapsed';
+  setNav(collapsed);
+  try { localStorage.setItem('decision-nav', collapsed ? 'collapsed' : 'expanded'); } catch {}
+});
 
 const navLinks = [...document.querySelectorAll('.masthead nav a')];
 const sections = navLinks.map(link => document.querySelector(link.getAttribute('href'))).filter(Boolean);

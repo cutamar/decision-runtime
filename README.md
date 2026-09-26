@@ -18,7 +18,7 @@ docker compose up --build -d
 ```
 
 Open **http://127.0.0.1:8765**. The default image includes sparse, frozen
-MiniLM and adapted MiniLM choices. Its first build installs the CPU training
+MiniLM, adapted MiniLM and LoRA MiniLM choices. Its first build installs the CPU training
 dependencies; the pinned MiniLM files and public benchmark data download on
 first use. The app and model execution stay local. Compose publishes the port
 only on the host's loopback address and stores uploads, cached data and model
@@ -32,8 +32,8 @@ Use `docker compose logs -f lab` to inspect startup or job errors, and
 `docker compose down` to stop the service. The default image is large because
 it includes CPU PyTorch for adaptation. For a smaller image without adaptation, build with
 `ENABLE_ADAPT=0 docker compose up --build -d`; select the fixed MiniLM encoder
-or TF IDF baseline in that image. The adapted model choice requires rebuilding
-with `ENABLE_ADAPT=1`.
+or TF IDF baseline in that image. The adapted and LoRA model choices require
+rebuilding with `ENABLE_ADAPT=1`.
 
 If you are in the platform repository, run
 `docker compose -f runtime/compose.yaml up --build -d` instead. The Docker Compose
@@ -56,6 +56,8 @@ From the platform repository root, use `python -m pip install -e './runtime[neur
 
 ## Local model lab
 
+![Decision Lab local web app](docs/decision-lab.png)
+
 Install the lab extra and start the app from a local checkout:
 
 ```bash
@@ -75,7 +77,10 @@ file, makes a group-aware split, fits the chosen model, and evaluates that
 results, calibration, the review policy and raw reports, then write your own
 message to see its predicted label, probabilities and whether the policy would
 suggest it or defer it for review. Your trial text is not saved as training
-material. The default adapted model needs CPU PyTorch. On a CPU-only machine,
+material. Model choices are a sparse TF-IDF baseline, the frozen MiniLM
+encoder, last-layer-adapted MiniLM, and LoRA-adapted MiniLM (small low-rank
+adapters on attention query/value, merged back into the exported encoder). The
+default adapted model and the LoRA option need CPU PyTorch. On a CPU-only machine,
 install a compatible CPU PyTorch wheel before the `adapt` extra. For a lighter
 install, use `.[lab]` and select the fixed MiniLM encoder or TF IDF baseline
 in the app. MiniLM source files are downloaded at a pinned revision and

@@ -139,8 +139,8 @@ class LocalApp:
 
     def _settings(self, payload: dict) -> tuple[str, dict]:
         model_kind = payload.get("model", "adapted")
-        if not isinstance(model_kind, str) or model_kind not in {"sparse", "frozen", "adapted"}:
-            raise ValueError("choose sparse, frozen or adapted")
+        if not isinstance(model_kind, str) or model_kind not in {"sparse", "frozen", "adapted", "lora"}:
+            raise ValueError("choose sparse, frozen, adapted or lora")
         try:
             coverage = float(payload.get("min_coverage"))
             max_error = float(payload.get("max_accepted_error"))
@@ -191,11 +191,17 @@ class LocalApp:
             report = train_bundle(dataset, split_path, plan_path, bundle, candidate_only=True)
         else:
             self._update(job_id, phase="source", message="Downloading and verifying MiniLM files")
-            download_source(self.source, include_weights=model_kind == "adapted")
+            download_source(self.source, include_weights=model_kind in {"adapted", "lora"})
             if model_kind == "adapted":
                 self._update(job_id, phase="adapting", message="Adapting MiniLM's last layer")
                 adapted = root / "adapted-source"
                 adapt_encoder(dataset, split_path, self.source, adapted)
+                source = adapted
+            elif model_kind == "lora":
+                self._update(job_id, phase="adapting", message="Training LoRA adapters on MiniLM")
+                adapted = root / "lora-source"
+                from .lora_encoder import lora_adapt_encoder
+                lora_adapt_encoder(dataset, split_path, self.source, adapted)
                 source = adapted
             else:
                 source = self.source

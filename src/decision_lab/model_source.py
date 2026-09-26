@@ -21,6 +21,9 @@ SOURCE_FILES = {
     "README.md": "766a000da416a8a45760fce75dd387cc2ba3a358f7c58b4813a7b222ddb32471",
 }
 ADAPTATION_WEIGHTS_SHA256 = "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db"
+# Supervised recipes that fold learned updates back into MiniLM's weights before
+# ONNX export, so their sources are ordinary encoder graphs to the runtime.
+ADAPTATION_RECIPES = ("last_layer_supervised_v1", "lora_query_value_v1")
 
 
 def verify_source(root: Path) -> None:
@@ -44,7 +47,7 @@ def candidate_source_info(root: Path) -> dict:
     if adaptation_path.is_symlink():
         raise ValueError("linked adaptation manifest is unsupported")
     info = json.loads(adaptation_path.read_text(encoding="utf-8"))
-    if (info.get("recipe") != "last_layer_supervised_v1" or info.get("base_model_id") != MODEL_ID
+    if (info.get("recipe") not in ADAPTATION_RECIPES or info.get("base_model_id") != MODEL_ID
             or info.get("base_model_revision") != REVISION
             or info.get("base_model_weights_sha256") != ADAPTATION_WEIGHTS_SHA256):
         raise ValueError("unsupported adapted source")
