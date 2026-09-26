@@ -43,8 +43,11 @@ label, `review_only` IDs, a tie tolerance, and a fallback identifier. All
 preprocessing and fitted parameters needed to reproduce predictions are in the
 payload files. Sparse bundles contain a TF-IDF vocabulary and linear scores;
 encoder bundles contain the ONNX graph, tokenizer, linear head, and pooling
-configuration. For exact accepted values, see the version 1.0 loader; changes
-to this contract require a new format version.
+configuration. Frozen, last-layer-adapted, and LoRA MiniLM encoders all export a
+plain ONNX graph — any adaptation is folded into the weights before export — so
+their bundles are indistinguishable in this format; the specific training recipe
+is recorded only in `lineage.json`. For exact accepted values, see the version
+1.0 loader; changes to this contract require a new format version.
 
 Prediction schema 1.0 contains `status`, `choice`, `suggested_choice`,
 `top_probability`, `probabilities`, `abstention_reason`, `model_version`,

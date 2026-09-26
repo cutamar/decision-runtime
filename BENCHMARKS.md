@@ -51,6 +51,10 @@ customer pilot, use authorized real examples, frozen requirements, a current
 routing baseline and an untouched confirmation set. Device timing measures
 only the exported bundle on the machine running the app.
 
+This page describes the dataset presets and their rights. Comparing the model
+choices themselves — sparse, frozen, adapted and LoRA MiniLM — is done with the
+lab's holdout evaluation and the Device timing section, not here.
+
 ## Measured results and published references
 
 Our local runs use **different inputs and outputs** from the publishers' runs.
