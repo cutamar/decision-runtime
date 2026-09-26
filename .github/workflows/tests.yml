@@ -13,7 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # The lab extra pins numpy/scipy/scikit-learn, which require Python >= 3.12.
+        python-version: ["3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
