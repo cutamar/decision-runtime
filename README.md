@@ -6,6 +6,7 @@
 
 **An Apache-2.0 Python SDK for offline, fixed-label text decisions — plus a local lab to build the models.**
 
+[![Tests](https://github.com/cutamar/decision-runtime/actions/workflows/tests.yml/badge.svg)](https://github.com/cutamar/decision-runtime/actions/workflows/tests.yml)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Inference](https://img.shields.io/badge/inference-offline%20CPU-44cc11)
