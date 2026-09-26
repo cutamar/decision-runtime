@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/banner.png" alt="Decision Runtime — Local. Deterministic. Deferrable." width="840">
+<img src="docs/banner.webp" alt="Decision Runtime — Local. Deterministic. Deferrable." width="840">
 
 # Decision Runtime
 
