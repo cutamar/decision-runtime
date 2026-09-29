@@ -27,6 +27,7 @@ optional **browser lab** for building candidates from your own labeled data.
 - [✨ What it does](#-what-it-does)
 - [🚀 Quick start](#-quick-start)
 - [🧪 The local model lab](#-the-local-model-lab)
+- [📊 Benchmark: specialized vs frontier](#-benchmark-specialized-vs-frontier)
 - [🧠 Using the SDK](#-using-the-sdk)
 - [🔒 Privacy & safety](#-privacy--safety)
 - [🛠️ Develop](#️-develop)
@@ -167,6 +168,44 @@ Measurements are machine- and workload-specific and make no phone/GPU/hosted
 claim.
 
 ---
+
+## 📊 Benchmark: specialized vs frontier
+
+Can a tiny, offline, specialized model rival a frontier general model on a
+narrow decision? On the public **Open-Jev mailroom** task (11 typed decision
+heads, three languages, hard one-hot scoring) the answer is yes.
+
+![Specialized small model vs frontier on the Open-Jev mailroom task](docs/mailroom-benchmark.png)
+
+A **frozen ~118M multilingual MiniLM** (`paraphrase-multilingual-MiniLM-L12-v2`)
+plus one linear head per decision, trained on the public data and evaluated on a
+held-out test split:
+
+| | Ours (118M, offline) | Jev 1.13.0 | GPT-6 Astra | GPT-5.6 Luna |
+|---|---|---|---|---|
+| Overall | **99.65%** | 98.6% | 99.1% | 97.7% |
+| English | 99.82% | 98.9% | — | — |
+| Chinese | 99.56% | 97.9% | — | — |
+| Turkish | 99.56% | 98.9% | — | — |
+
+Each decision takes about **20 ms (p95 ~31 ms)** on a consumer laptop CPU
+(Intel Core i9-10885H), offline, no GPU, no API.
+
+**Read this before quoting a number.** This is a *different item sample* from
+Open-Jev's frozen 87-request / 921-decision provider probe, which is not public
+and not reconstructable from the released data — so treat it as *same task*, not
+*identical items*. The data is **synthetic and templated**, so real inbox mail
+is harder; the script asserts there is **no email, family, or text overlap**
+between train and test, so the score is leakage-free, but real-world accuracy
+will be lower. Our model is task-specialized; Jev and GPT are general models —
+that trade (train per task, fixed labels) is the point.
+
+Reproduce it:
+
+```bash
+pip install -e '.[lab,adapt]' sentencepiece
+python examples/mailroom_multilingual_benchmark.py
+```
 
 ## 🧠 Using the SDK
 
