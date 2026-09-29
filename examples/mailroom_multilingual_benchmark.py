@@ -46,6 +46,8 @@ DATASET_REPO = "ZefanCai/Open-Jev"
 DATASET_REVISION = "c67699e13d0ae25e35b77165a4b6b079bedc8aba"
 CONFIG = "mailroom-control-v1"
 MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+# Pin the encoder to a fixed revision so results cannot silently drift upstream.
+MODEL_REVISION = "e8f8c211226b894fcb81acc59f3b34ba3efd5f42"
 CACHE = Path("data/open-jev-mailroom")
 # SHA-256 of each raw split file at the pinned dataset revision.
 HASHES = {
@@ -128,8 +130,8 @@ def main() -> None:
           f"test families={len(test_groups)}  heads={len(set(train_labels) & set(test_labels))}", flush=True)
     print("Leakage check passed: no email / family / text overlap.\n", flush=True)
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL)
-    encoder = AutoModel.from_pretrained(MODEL).eval()
+    tokenizer = AutoTokenizer.from_pretrained(MODEL, revision=MODEL_REVISION)
+    encoder = AutoModel.from_pretrained(MODEL, revision=MODEL_REVISION).eval()
     torch.set_num_threads(4)
 
     def embed(texts: list[str], batch_size: int = 64) -> np.ndarray:
