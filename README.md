@@ -207,6 +207,37 @@ pip install -e '.[lab,adapt]' sentencepiece
 python examples/mailroom_multilingual_benchmark.py
 ```
 
+### A second benchmark: offline prompt-injection gate
+
+Can a tiny offline model screen prompts for injection and jailbreak attacks
+before they reach a hosted LLM? On a public Apache-2.0 injection dataset
+(22k prompts, group-aware leakage-free splits), a **frozen 22M MiniLM plus a
+linear head** gets close to a fine-tuned transformer six times its size.
+
+| | Ours (22M, frozen) | DeBERTa-v3-small (142M, fine-tuned) | Random Forest |
+|---|---|---|---|
+| Accuracy | 94.5% | 95.1% | 96.3% |
+| F1 (malicious) | 0.953 | 0.959 | 0.969 |
+
+Recall 0.951, precision 0.955, ROC-AUC 0.988, and about **6 ms per prompt** on a
+laptop CPU, offline. Because it returns a calibrated probability, a confidence
+threshold turns it into an accept / review / defer policy: at 0.95 confidence it
+acts on **87% of prompts at 99.0% accuracy** and sends the uncertain rest to a
+human.
+
+![Calibrated abstention on the prompt-injection gate: act on the confident, defer the rest to a human](docs/injection-benchmark.png)
+
+We **match, we do not beat**: a frozen 22M encoder lands just under a fine-tuned
+142M model and a classical baseline. And injection is adversarial, so this is a
+fast first filter and a layer of defense, not a guarantee.
+
+Reproduce it:
+
+```bash
+pip install -e '.[lab,adapt]' pyarrow
+python examples/prompt_injection_gate_benchmark.py
+```
+
 ## 🧠 Using the SDK
 
 Load a **signed** bundle with its trusted public key obtained separately from
